@@ -31,9 +31,12 @@
 
 ## Installation
 
-1. Untar driver
+1. Clone or untar driver (depending on where you get the driver)
    ```bash
+   git clone https://github.com/DDNStorage/exa-csi-driver.git exascaler-csi-file-driver
+   or
    tar -xzvf /opt/exascaler-csi-file-driver.tar.gz
+
    cd exascaler-csi-file-driver
    docker load -i bin/exascaler-csi-file-driver.tar
    ```
@@ -70,6 +73,8 @@ metadata:
 provisioner: exascaler-csi-file-driver.tintri.com
 mountOptions:                        # list of options for `mount -o ...` command
 #  - noatime                         #
+parameters:
+  projectId: "100001"                # Required. Points to a project id to be used to set volume quota.
 ```
 
 #### Example
