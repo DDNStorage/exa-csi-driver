@@ -1,0 +1,91 @@
+# Nginx pod with pre provisioned storage using Exascaler CSI driver
+#
+# $ kubectl apply -f examples/kubernetes/nginx-persistent-volume.yaml
+#
+
+
+# --------------------------------------
+# Exascaler CSI Driver - Storage Class
+# --------------------------------------
+
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: exascaler-csi-file-driver-sc-nginx-persistent
+provisioner: exascaler-csi-file-driver.tintri.com
+allowVolumeExpansion: true
+mountOptions:                        # list of options for `mount -o ...` command
+#  - noatime                         #
+---
+
+
+# ------------------------------------------
+# Exascaler CSI Driver - Persistent Volume
+# ------------------------------------------
+
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: exascaler-csi-file-driver-pv-nginx-persistent
+  labels:
+    name: exascaler-csi-file-driver-pv-nginx-persistent
+spec:
+  storageClassName: exascaler-csi-file-driver-sc-nginx-persistent
+  accessModes:
+    - ReadWriteMany
+  capacity:
+    storage: 1Gi
+  csi:
+    driver: exascaler-csi-file-driver.tintri.com
+    volumeHandle: /exaFS/nginx-persistent
+  #mountOptions:  # list of options for `mount` command
+  #  - ro    #
+---
+
+
+# ------------------------------------------------
+# Exascaler CSI Driver - Persistent Volume Claim
+# ------------------------------------------------
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: exascaler-csi-file-driver-pvc-nginx-persistent
+spec:
+  storageClassName: exascaler-csi-file-driver-sc-nginx-persistent
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+  selector:
+    matchLabels:
+      # to create 1-1 relationship for pod - persistent volume use unique labels
+      name: exascaler-csi-file-driver-pv-nginx-persistent
+---
+
+
+# ---------
+# Nginx pod
+# ---------
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-persistent-volume
+spec:
+  containers:
+    - image: nginx
+      imagePullPolicy: IfNotPresent
+      name: nginx
+      ports:
+        - containerPort: 80
+          protocol: TCP
+      volumeMounts:
+        - mountPath: /usr/share/nginx/html
+          name: exascaler-csi-file-driver-data
+  volumes:
+    - name: exascaler-csi-file-driver-data
+      persistentVolumeClaim:
+        claimName: exascaler-csi-file-driver-pvc-nginx-persistent
+        readOnly: false
