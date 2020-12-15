@@ -33,48 +33,54 @@
 
 1. Clone or untar driver (depending on where you get the driver)
    ```bash
-   git clone https://github.com/DDNStorage/exa-csi-driver.git exascaler-csi-file-driver
+   git clone https://github.com/DDNStorage/exa-csi-driver.git /opt/exascaler-csi-file-driver
    or
-   tar -xzvf /opt/exascaler-csi-file-driver.tar.gz
+   rpm -Uvh exa-csi-driver-1.0-1.el7.x86_64.rpm
 
-   cd exascaler-csi-file-driver
-   docker load -i bin/exascaler-csi-file-driver.tar
+   docker load -i /opt/exascaler-csi-file-driver/bin/exascaler-csi-file-driver.tar
    ```
-2. Edit `deploy/kubernetes/exascaler-csi-file-driver-config.yaml` file. Driver configuration example:
+
+2. Copy /opt/exascaler-csi-file-driver/deploy/kubernetes/exascaler-csi-file-driver-config.yaml to /etc/exascaler-csi-file-driver-v1.0/exascaler-csi-file-driver-config.yaml
+   ```
+   cp /opt/exascaler-csi-file-driver/deploy/kubernetes/exascaler-csi-file-driver-config.yaml /etc/exascaler-csi-file-driver-v1.0/exascaler-csi-file-driver-config.yaml 
+   ```
+Edit `/etc/exascaler-csi-file-driver-v1.0/exascaler-csi-file-driver-config.yaml` file. Driver configuration example:
    ```yaml
-   mountPoint: /exaFS
-   exaFS: 10.3.196.24@tcp:/csi                                 # default Exascaler data IP
-   debug: true                                                 # more logs
-   exaMountUser: ubuntu                                        # non-root user synced between EXA clients and server
+   exaFS: 10.3.196.24@tcp:/csi             # Full path to EXAscaler filesystem
+   mountPoint: /exaFS                      # Mountpoint where EXAscaler filesystem will be mounted on the host
+   debug: true                             # more logs
    ```
-   **Note:** exaMountUser should exist and have identical ID on Kubernetes host side and on EXAScaler side
+
 3. Create Kubernetes secret from the file:
    ```bash
-   kubectl create secret generic exascaler-csi-file-driver-config --from-file=deploy/kubernetes/exascaler-csi-file-driver-config.yaml
+   kubectl create secret generic exascaler-csi-file-driver-config --from-file=/etc/exascaler-csi-file-driver-v1.0/exascaler-csi-file-driver-config.yaml
    ```
+
 4. Register driver to Kubernetes:
    ```bash
-   kubectl apply -f deploy/kubernetes/exascaler-csi-file-driver.yaml
+   kubectl apply -f /opt/exascaler-csi-file-driver/deploy/kubernetes/exascaler-csi-file-driver.yaml
    ```
 
 ## Usage
 
 ### Dynamically provisioned volumes
 
-For dynamic volume provisioning, the administrator needs to set up a _StorageClass_ pointing to the driver.
-In this case Kubernetes generates volume name automatically (for example `pvc-ns-cfc67950-fe3c-11e8-a3ca-005056b857f8`).
-Default driver configuration may be overwritten in `parameters` section:
+For dynamic volume provisioning, the administrator needs to set up a _StorageClass_ in the PV yaml (/opt/exascaler-csi-file-driver/examples/exa-dynamic-nginx.yaml for this example) pointing to the driver.
+For dynamically provisioned volumes, Kubernetes generates volume name automatically (for example `pvc-ns-cfc67950-fe3c-11e8-a3ca-005056b857f8-projectId-1001`).
 
 ```yaml
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: exascaler-csi-file-driver-sc-nginx-dynamic
-provisioner: exascaler-csi-file-driver.tintri.com
+provisioner: exa.csi.ddn.com
 mountOptions:                        # list of options for `mount -o ...` command
 #  - noatime                         #
 parameters:
-  projectId: "100001"                # Required. Points to a project id to be used to set volume quota.
+  projectId: "100001"      # Required. Points to EXA project id to be used to set volume quota.
+  exaMountUid: "1001"      # Uid which will be used to access the volume in pod. Should be synced between EXA server and clients.
+  bindMount: "false"       # Determines, whether volume will bind mounted or as a separate lustre mount.
+  mountOptions: ro,noflock
 ```
 
 #### Example
@@ -82,13 +88,13 @@ parameters:
 Run Nginx pod with dynamically provisioned volume:
 
 ```bash
-kubectl apply -f examples/exa-dynamic-nginx.yaml
+kubectl apply -f /opt/exascaler-csi-file-driver/examples/exa-dynamic-nginx.yaml
 
 # to delete this pod:
-kubectl delete -f examples/exa-dynamic-nginx.yaml
+kubectl delete -f /opt/exascaler-csi-file-driver/examples/exa-dynamic-nginx.yaml
 ```
 
-### Pre-provisioned volumes
+### Static (pre-provisioned) volumes
 
 The driver can use already existing Exasaler filesystem,
 in this case, _StorageClass_, _PersistentVolume_ and _PersistentVolumeClaim_ should be configured.
@@ -100,7 +106,7 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: exascaler-csi-driver-sc-nginx-persistent
-provisioner: exascaler-csi-driver.tintri.com
+provisioner:  exa.csi.ddn.com
 mountOptions:                        # list of options for `mount -o ...` command
 #  - noatime                         #
 ```
@@ -121,20 +127,24 @@ spec:
   capacity:
     storage: 1Gi
   csi:
-    driver: exascaler-csi-driver.tintri.com
+    driver: exa.csi.ddn.com
     volumeHandle: /exaFS/nginx-persistent
-  #mountOptions:  # list of options for `mount` command
-  #  - noatime    #
+    volumeAttributes:         # volumeAttributes are the alternative of storageClass params for static (precreated) volumes.
+      exaMountUid: "1001"     # Uid which will be used to access the volume in pod.
+      #mountOptions: ro, flock # list of options for `mount` command
 ```
 
 CSI Parameters:
 
 | Name           | Description                                                       | Example                              |
 |----------------|-------------------------------------------------------------------|--------------------------------------|
-| `driver`       | installed driver name "exascaler-csi-file-driver.tintri.com"        | `exascaler-csi-file-driver.tintri.com` |
-| `volumeHandle` | EXAScaler server IP and path to existing EXAScaler filesystem | `/exaFS/nginx-persistent`               |
+| `driver`       | [required] installed driver name " exa.csi.ddn.com"        | `exa.csi.ddn.com` |
+| `volumeHandle` | [required] EXAScaler server IP and path to existing EXAScaler filesystem | `/exaFS/nginx-persistent`               |
+| `exaMountUid`  | Uid which will be used to access the volume from the pod. | `1015` |
+| `bindMount`    | Determines, whether volume will bind mounted or as a separate lustre mount. | `true` |
+| `mountOptions` | Options that will be passed to mount command (-o <opt1,opt2,opt3>)  | `ro,flock` |
 
-#### _PersistentVolumeClaim_ (pointed to created _PersistentVolume_)
+#### _PersistentVolumeClaim_ (pointing to created _PersistentVolume_)
 
 ```yaml
 apiVersion: v1
@@ -162,28 +172,44 @@ Run nginx server using PersistentVolume.
 `/exaFS/nginx-persistent`.
 
 ```bash
-kubectl apply -f examples/nginx-persistent-volume.yaml
+kubectl apply -f /opt/exascaler-csi-file-driver/examples/nginx-persistent-volume.yaml
 
 # to delete this pod:
-kubectl delete -f examples/nginx-persistent-volume.yaml
+kubectl delete -f /opt/exascaler-csi-file-driver/examples/nginx-persistent-volume.yaml
 ```
 
 ## Updating the driver version
 To update to a new driver version, you need to follow the following steps:
 
-1. Download the new driver version
-2. Update version in exascaler-csi-file-driver.yaml
-3. Remove the old version
+1. Remove the old driver version
 ```bash
-kubectl delete -f deploy/kubernetes/exascaler-csi-file-driver.yaml
+kubectl delete -f /opt/exascaler-csi-file-driver/deploy/kubernetes/exascaler-csi-file-driver.yaml
 kubectl delete secrets exascaler-csi-file-driver-config
+rpm -evh exa-csi-driver
 ```
-4. Load new image
-```bash
-docker load -i bin/exascaler-csi-file-driver.tar
+2. Download the new driver version (git clone or new ISO)
+3. Copy and edit config file
+   ```
+   cp /opt/exascaler-csi-file-driver/deploy/kubernetes/exascaler-csi-file-driver-config.yaml /etc/exascaler-csi-file-driver-v1.1/exascaler-csi-file-driver-config.yaml
+   ```
+4. Update version in /opt/exascaler-csi-file-driver/deploy/kubernetes/exascaler-csi-file-driver.yaml
 ```
-5. Apply new driver
+          image: exascaler-csi-file-driver:v1.1
+```
+5. Load new image
 ```bash
-kubectl create secret generic exascaler-csi-file-driver-config --from-file=./deploy/kubernetes/exascaler-csi-file-driver-config.yaml
-kubectl apply -f deploy/kubernetes/exascaler-csi-file-driver.yaml
+docker load -i /opt/exascaler-csi-file-driver/bin/exascaler-csi-file-driver.tar
+```
+6. Apply new driver
+```bash
+kubectl create secret generic exascaler-csi-file-driver-config --from-file=/etc/exascaler-csi-file-driver-v1.1/exascaler-csi-file-driver-config.yaml
+kubectl apply -f /opt/exascaler-csi-file-driver/deploy/kubernetes/exascaler-csi-file-driver.yaml
+```
+
+## Troubleshooting
+Logs can be found in /var/log/containers directory.
+To collect all driver related logs, you can use the following command
+```
+mkdir -p /tmp/exascaler-csi-file-driver-logs/
+cp /var/log/containers/exascaler-csi-* /tmp/exascaler-csi-file-driver-logs/
 ```

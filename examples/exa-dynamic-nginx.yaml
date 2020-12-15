@@ -6,11 +6,12 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: exascaler-csi-file-driver-sc
-provisioner: exascaler-csi-file-driver.tintri.com
+provisioner: exa.csi.ddn.com
 allowVolumeExpansion: true
 parameters:
   projectId: "100001"           # Required. Points to a project id to be used to set volume quota.
-  exaMountUid: "1001"           # Uid which will be used to access the volume in pod.
+  exaMountUid: "1001"           # Uid which will be used to access the volume in pod. Should be synced between EXA server and clients.
+  exaSubDirectory: csi1         # A subdirectory on EXA filesystem where PVs for this storageClass will be created.
 ---
 
 # ------------------------------------------------
@@ -41,8 +42,6 @@ metadata:
 spec:
   securityContext:
     runAsUser: 1001
-    runAsGroup: 1001
-    fsGroup: 1001
   containers:
     - image: nginxinc/nginx-unprivileged
       imagePullPolicy: IfNotPresent
