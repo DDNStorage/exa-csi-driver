@@ -14,7 +14,7 @@
 # Exascaler CSI Driver
 # ----------------------
 
-apiVersion: storage.k8s.io/v1beta1 #k8s =>1.14
+apiVersion: storage.k8s.io/v1 #k8s =>1.14
 kind: CSIDriver
 metadata:
   name: exascaler-csi-file-driver.tintri.com

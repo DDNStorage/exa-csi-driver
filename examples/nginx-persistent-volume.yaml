@@ -14,8 +14,6 @@ metadata:
   name: exascaler-csi-file-driver-sc-nginx-persistent
 provisioner: exascaler-csi-file-driver.tintri.com
 allowVolumeExpansion: true
-mountOptions:                        # list of options for `mount -o ...` command
-#  - noatime                         #
 ---
 
 
@@ -38,8 +36,9 @@ spec:
   csi:
     driver: exascaler-csi-file-driver.tintri.com
     volumeHandle: /exaFS/nginx-persistent
-  #mountOptions:  # list of options for `mount` command
-  #  - ro    #
+    volumeAttributes:         # volumeAttributes are the alternative of storageClass params for static (precreated) volumes.
+      # mountOptions: ro, noflock # list of options for `mount` command
+      bindMount: "false"       # Determines, whether volume will bind mounted or as a separate lustre mount.
 ---
 
 
@@ -74,8 +73,10 @@ kind: Pod
 metadata:
   name: nginx-persistent-volume
 spec:
+  securityContext:
+    runAsUser: 1001
   containers:
-    - image: nginx
+    - image: nginxinc/nginx-unprivileged
       imagePullPolicy: IfNotPresent
       name: nginx
       ports:

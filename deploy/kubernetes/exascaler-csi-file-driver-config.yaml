@@ -6,5 +6,4 @@
 
 mountPoint: /exaFS                                          # mountpoint on the host where the exaFS will be mounted
 exaFS: 10.204.86.114@tcp:/testfs                            # default path to exa filesystem
-exaMountUser: ubuntu                                        # non-root user synced between EXA clients and server
-#debug: true                                                # more logs
+debug: true                                                 # more logs

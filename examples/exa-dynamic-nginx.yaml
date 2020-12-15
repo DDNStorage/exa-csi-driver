@@ -10,6 +10,7 @@ provisioner: exascaler-csi-file-driver.tintri.com
 allowVolumeExpansion: true
 parameters:
   projectId: "100001"           # Required. Points to a project id to be used to set volume quota.
+  exaMountUid: "1001"           # Uid which will be used to access the volume in pod.
 ---
 
 # ------------------------------------------------
