@@ -74,8 +74,6 @@ kind: StorageClass
 metadata:
   name: exascaler-csi-file-driver-sc-nginx-dynamic
 provisioner: exa.csi.ddn.com
-mountOptions:                        # list of options for `mount -o ...` command
-#  - noatime                         #
 parameters:
   projectId: "100001"      # Required. Points to EXA project id to be used to set volume quota.
   exaMountUid: "1001"      # Uid which will be used to access the volume in pod. Should be synced between EXA server and clients.
@@ -107,8 +105,6 @@ kind: StorageClass
 metadata:
   name: exascaler-csi-driver-sc-nginx-persistent
 provisioner:  exa.csi.ddn.com
-mountOptions:                        # list of options for `mount -o ...` command
-#  - noatime                         #
 ```
 
 #### _PersistentVolume_ configuration
