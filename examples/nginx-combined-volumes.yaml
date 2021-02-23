@@ -32,7 +32,6 @@ spec:
       storage: 1Gi
 ---
 
-
 # --------------------------------------
 # Exascaler CSI Driver - Storage Class
 # --------------------------------------
@@ -45,7 +44,6 @@ provisioner: exa.csi.ddn.com
 allowVolumeExpansion: true
 # mountOptions: noatime           # list of options for `mount -o ...` command
 ---
-
 
 # ------------------------------------------
 # Exascaler CSI Driver - Persistent Volume
@@ -71,7 +69,6 @@ spec:
       bindMount: "false"       # Determines, whether volume will bind mounted or as a separate lustre mount.
       #mountOptions: ro,flock # list of options for `mount` command
 ---
-
 
 # ------------------------------------------------
 # Exascaler CSI Driver - Persistent Volume Claim

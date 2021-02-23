@@ -1,0 +1,61 @@
+# --------------------------------------
+# Exascaler CSI Driver - Storage Class
+# --------------------------------------
+
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: exascaler-csi-file-driver-sc-2
+provisioner: exa.csi.ddn.com
+allowVolumeExpansion: true
+parameters:
+  projectId: "100001"           # Required. Points to a project id to be used to set volume quota.
+  exaMountUid: "1001"           # Uid which will be used to access the volume in pod. Should be synced between EXA server and clients.
+  bindMount: "false"
+  exaFS: "10.204.86.114@tcp:/testfs"   # Overrides exaFS value from config. Use this to support multiple EXA filesystems.
+  mountPoint: "/sc-mnt"
+---
+
+# ------------------------------------------------
+# Exaxscaler CSI Driver - Persistent Volume Claim
+# ------------------------------------------------
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: exascaler-csi-file-driver-pvc-2
+spec:
+  storageClassName: exascaler-csi-file-driver-sc-2
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+---
+
+# ---------
+# Nginx pod
+# ---------
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-dynamic-volume-2
+spec:
+  securityContext:
+    runAsUser: 1001
+  containers:
+    - image: nginxinc/nginx-unprivileged
+      imagePullPolicy: IfNotPresent
+      name: nginx
+      ports:
+        - containerPort: 80
+          protocol: TCP
+      volumeMounts:
+        - mountPath: /data
+          name: exascaler-csi-file-driver-data
+  volumes:
+    - name: exascaler-csi-file-driver-data
+      persistentVolumeClaim:
+        claimName: exascaler-csi-file-driver-pvc-2
+        readOnly: false
