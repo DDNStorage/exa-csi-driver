@@ -74,13 +74,15 @@ kind: StorageClass
 metadata:
   name: exascaler-csi-file-driver-sc-nginx-dynamic
 provisioner: exa.csi.ddn.com
+mountOptions:                        # list of options for `mount -o ...` command
+#  - noatime                         #
 parameters:
   projectId: "100001"      # Required. Points to EXA project id to be used to set volume quota.
   exaMountUid: "1001"      # Uid which will be used to access the volume in pod. Should be synced between EXA server and clients.
   bindMount: "false"       # Determines, whether volume will bind mounted or as a separate lustre mount.
   exaFS: "10.204.86.114@tcp:/testfs"   # Overrides exaFS value from config. Use this to support multiple EXA filesystems.
+  mountPoint: /exaFS       # Overrides mountPoint value from config. Use this to support multiple EXA filesystems.
   mountOptions: ro,noflock
-  mountPoint: /mnt/storageClass-mnt
 ```
 
 #### Example
@@ -143,7 +145,7 @@ CSI Parameters:
 | `exaMountUid`  | Uid which will be used to access the volume from the pod. | `1015` |
 | `projectId`    | [required] Points to EXA project id to be used to set volume quota. | `100001` |
 | `exaFS`        | Overrides exaFS value from config. Use this to support multiple EXA filesystems. | `10.0.1.1@tcp:/fs01` |
-| `mountPoint`   | Overrides mountPoint value from config. Mount point where EXAscaler filesystem will be mounted on the host | `/mnt/exaFS`|
+| `mountPoint`   | Overrides Mountpoint where EXAscaler filesystem will be mounted on the host | `/sc-mnt` |
 | `bindMount`    | Determines, whether volume will bind mounted or as a separate lustre mount. | `true` |
 | `mountOptions` | Options that will be passed to mount command (-o <opt1,opt2,opt3>)  | `ro,flock` |
 
