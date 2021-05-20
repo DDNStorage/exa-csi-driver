@@ -143,11 +143,14 @@ CSI Parameters:
 | `driver`       | [required] installed driver name " exa.csi.ddn.com"        | `exa.csi.ddn.com` |
 | `volumeHandle` | [required] EXAScaler server IP and path to existing EXAScaler filesystem | `/exaFS/nginx-persistent`               |
 | `exaMountUid`  | Uid which will be used to access the volume from the pod. | `1015` |
-| `projectId`    | [required] Points to EXA project id to be used to set volume quota. | `100001` |
+| `projectId`    | Points to EXA project id to be used to set volume quota. | `100001` |
 | `exaFS`        | Overrides exaFS value from config. Use this to support multiple EXA filesystems. | `10.0.1.1@tcp:/fs01` |
 | `mountPoint`   | Overrides Mountpoint where EXAscaler filesystem will be mounted on the host | `/sc-mnt` |
 | `bindMount`    | Determines, whether volume will bind mounted or as a separate lustre mount. | `true` |
 | `mountOptions` | Options that will be passed to mount command (-o <opt1,opt2,opt3>)  | `ro,flock` |
+| `minProjectId` | Minimum project ID number for automatic generation. Only used when projectId is not provided. | 10000 |
+| `maxProjectId` | Maximum project ID number for automatic generation. Only used when projectId is not provided. | 4294967295 |
+| `generateProjectIdRetries` | Maximum retry count for generating random project ID. Only used when projectId is not provided. | `5` |
 
 #### _PersistentVolumeClaim_ (pointing to created _PersistentVolume_)
 

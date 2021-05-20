@@ -9,7 +9,7 @@ metadata:
 provisioner: exa.csi.ddn.com
 allowVolumeExpansion: true
 parameters:
-  projectId: "100001"      # Required. Points to a project id to be used to set volume quota.
+  projectId: "100001"      # Points to a project id to be used to set volume quota.
   exaMountUid: "1001"      # Uid which will be used to access the volume in pod.
   bindMount: "false"       # Determines, whether volume will bind mounted or as a separate lustre mount.
   mountOptions: ro,noflock
