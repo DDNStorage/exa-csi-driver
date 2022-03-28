@@ -35,7 +35,7 @@ spec:
     storage: 1Gi
   csi:
     driver: exa.csi.ddn.com
-    volumeHandle: /sc-mnt/nginx-persistent
+    volumeHandle: exa1:/sc-mnt/nginx-persistent
     volumeAttributes:         # volumeAttributes are the alternative of storageClass params for static (precreated) volumes.
       # mountOptions: ro, noflock # list of options for `mount` command
       exaFS: "10.204.86.113@tcp:/testfs"   # Overrides exaFS value from config. Use this to support multiple EXA filesystems.

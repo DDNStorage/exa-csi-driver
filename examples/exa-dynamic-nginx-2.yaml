@@ -12,8 +12,8 @@ parameters:
   projectId: "100001"           # Points to a project id to be used to set volume quota.
   exaMountUid: "1001"           # Uid which will be used to access the volume in pod. Should be synced between EXA server and clients.
   bindMount: "false"
-  exaFS: "10.204.86.114@tcp:/testfs"   # Overrides exaFS value from config. Use this to support multiple EXA filesystems.
-  mountPoint: "/sc-mnt"
+  # exaFS: "10.204.86.114@tcp:/testfs"   # Overrides exaFS value from config. Use this to support multiple EXA filesystems.
+  # mountPoint: "/sc-mnt"
 ---
 
 # ------------------------------------------------
@@ -48,6 +48,8 @@ spec:
     - image: nginxinc/nginx-unprivileged
       imagePullPolicy: IfNotPresent
       name: nginx
+      command: [ "/bin/bash", "-c", "--" ]
+      args: [ "while true; do echo $(date) > /data/timefile; sleep 5; sync; done;" ]
       ports:
         - containerPort: 80
           protocol: TCP

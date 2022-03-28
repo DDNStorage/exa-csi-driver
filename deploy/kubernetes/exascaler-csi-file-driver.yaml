@@ -90,6 +90,10 @@ rules:
   - apiGroups: [""]
     resources: ["persistentvolumeclaims/status"]
     verbs: ["update", "patch"]
+  # CSINode specific
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["csinodes"]
+    verbs: ["watch", "list", "get"]
 ---
 
 kind: ClusterRoleBinding
@@ -208,13 +212,14 @@ spec:
         # csi-provisioner: sidecar container that watches Kubernetes PersistentVolumeClaim objects
         # and triggers CreateVolume/DeleteVolume against a CSI endpoint
         - name: csi-provisioner
-          image: quay.io/k8scsi/csi-provisioner:v1.4.0
+          image: k8s.gcr.io/sig-storage/csi-provisioner:v2.2.0
           imagePullPolicy: IfNotPresent
           args:
-            - --connection-timeout=25s
-            - --provisioner=exa.csi.ddn.com
             - --csi-address=/var/lib/csi/sockets/pluginproxy/csi.sock
-            - --volume-name-prefix=pvc-ns
+            - --volume-name-prefix=pvc-exa
+            - --strict-topology
+            - --immediate-topology=false
+            - --feature-gates=Topology=true
           volumeMounts:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy

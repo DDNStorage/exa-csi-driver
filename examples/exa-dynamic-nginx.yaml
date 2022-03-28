@@ -7,13 +7,19 @@ kind: StorageClass
 metadata:
   name: exascaler-csi-file-driver-sc
 provisioner: exa.csi.ddn.com
+# volumeBindingMode: WaitForFirstConsumer
+allowedTopologies:
+- matchLabelExpressions:
+  - key: topology.kubernetes.io/zone
+    values:
+    - zone-1
 allowVolumeExpansion: true
-parameters:
+# parameters:
   # projectId: "100001"          # Points to a project id to be used to set volume quota.
-  exaMountUid: "1001"           # Uid which will be used to access the volume in pod. Should be synced between EXA server and clients.
-  bindMount: "false"
-  exaFS: "10.204.86.114@tcp:/testfs"   # Overrides exaFS value from config. Use this to support multiple EXA filesystems.
-  mountPoint: "/exaFS"
+  # exaMountUid: "1001"           # Uid which will be used to access the volume in pod. Should be synced between EXA server and clients.
+  # bindMount: "false"
+  # exaFS: "10.204.86.114@tcp:/testfs"   # Overrides exaFS value from config. Use this to support multiple EXA filesystems.
+  # mountPoint: "/exaFS"
 ---
 
 # ------------------------------------------------
@@ -42,6 +48,13 @@ kind: Pod
 metadata:
   name: nginx-dynamic-volume
 spec:
+  topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: DoNotSchedule
+    labelSelector:
+      matchLabels:
+        topology.kubernetes.io/zone: zone-1
   securityContext:
     runAsUser: 1001
   containers:
