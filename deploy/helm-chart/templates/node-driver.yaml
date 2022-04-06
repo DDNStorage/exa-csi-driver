@@ -1,0 +1,133 @@
+
+# ---------------------------
+# exascaler CSI Node Server
+# ---------------------------
+#
+# Runs driver node server (driver + registrar) on each node
+#
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: exascaler-csi-node-service-account
+  namespace: {{ .Values.namespace }}
+---
+
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: exascaler-csi-node-cluster-role
+rules:
+  - apiGroups: ['']
+    resources: ['events']
+    verbs: ['get', 'list', 'watch', 'create', 'update', 'patch']
+---
+
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: exascaler-csi-node-cluster-role-binding
+subjects:
+  - kind: ServiceAccount
+    name: exascaler-csi-node-service-account
+    namespace: {{ .Values.namespace }}
+roleRef:
+  kind: ClusterRole
+  name: exascaler-csi-node-cluster-role
+  apiGroup: rbac.authorization.k8s.io
+---
+
+# exascaler Node Server as a daemon
+
+kind: DaemonSet
+apiVersion: apps/v1
+metadata:
+  name: exascaler-csi-node
+spec:
+  selector:
+    matchLabels:
+      app: exascaler-csi-node
+  template:
+    metadata:
+      labels:
+        app: exascaler-csi-node
+    spec:
+      serviceAccount: exascaler-csi-node-service-account
+      hostNetwork: true
+      containers:
+        # driver-registrar: sidecar container that:
+        # 1) registers the CSI driver with kubelet
+        # 2) adds the drivers custom NodeId to a label on the Kubernetes Node API Object
+        - name: driver-registrar
+          image: quay.io/k8scsi/csi-node-driver-registrar:v1.1.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - --v=3
+            - --csi-address=/csi/csi.sock
+            - --kubelet-registration-path=/var/lib/kubelet/plugins_registry/exa.csi.ddn.com/csi.sock
+          env:
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+            - name: registration-dir
+              mountPath: /registration
+        - name: driver
+          resources:
+            limits:
+              memory: {{ .Values.resources.limits.memory }}
+              cpu: {{ .Values.resources.limits.cpu }}
+            requests:
+              memory: {{ .Values.resources.requests.memory }}
+              cpu: {{ .Values.resources.requests.cpu }}
+          securityContext:
+            privileged: true
+            capabilities:
+              add: ['SYS_ADMIN']
+            allowPrivilegeEscalation: true
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: "{{ .Values.image.pullPolicy }}"
+          args:
+            - --nodeid=$(KUBE_NODE_NAME)
+            - --endpoint=unix://csi/csi.sock
+            - --role=node
+          env:
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+            - name: secret
+              mountPath: /config
+            - name: host
+              mountPath: /host
+              mountPropagation: Bidirectional
+            - name: pods-mount-dir
+              mountPath: /var/lib/kubelet/pods
+              mountPropagation: Bidirectional
+      volumes:
+        - name: socket-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins_registry/exa.csi.ddn.com
+            type: DirectoryOrCreate
+        - name: registration-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins_registry/
+            type: Directory
+        - name: pods-mount-dir
+          hostPath:
+            path: /var/lib/kubelet/pods
+            type: Directory
+        - name: host
+          hostPath:
+            path: /
+            type: Directory
+        - name: secret
+          secret:
+            secretName: {{ .Values.secretName }}
+---

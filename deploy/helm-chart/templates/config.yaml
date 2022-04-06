@@ -1,0 +1,9 @@
+# This secret is used to set the initial credentials of the node container.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Values.secretName }}
+  namespace: {{ .Values.namespace }}
+type: "Opaque"
+data:
+{{ (.Files.Glob "exascaler-csi-file-driver-config.yaml").AsSecrets | nindent 2 }}

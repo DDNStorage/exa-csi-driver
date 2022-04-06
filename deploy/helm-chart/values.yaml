@@ -1,0 +1,24 @@
+# Default values for exa-csi.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+namespace: "default"  # replace with non-default namespace name if needed
+volumeNamePrefix: "pvc-exa"
+
+replicaCount: 1
+
+image:
+  repository: "quay.io/ddn/exascaler-csi-file-driver"
+  pullPolicy: "Always"
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "master"
+
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+secretName: exascaler-csi-file-driver-config

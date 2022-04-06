@@ -12,6 +12,7 @@ Releases can be found here - https://github.com/DDNStorage/exa-csi-driver/releas
 |Expand volume|GA|>= 1.0.0|>= 1.1.0|>=1.18|
 |StorageClass Secrets|GA|>= 1.0.0|>=1.0.0|>=1.18|
 |Mount options|GA|>= 1.0.0|>= 1.0.0|>=1.18|
+|Topology|GA|>= v2.0.0|>= v1.0.0|>=1.17|
 
 ## Requirements
 
@@ -30,13 +31,26 @@ Releases can be found here - https://github.com/DDNStorage/exa-csi-driver/releas
 
 
 ## Installation
-
 1. Clone or untar driver (depending on where you get the driver)
    ```bash
    git clone https://github.com/DDNStorage/exa-csi-driver.git /opt/exascaler-csi-file-driver
    or
    rpm -Uvh exa-csi-driver-1.0-1.el7.x86_64.rpm
+   ```
 
+### Using helm chart
+
+2. Make changes to `deploy/helm-chart/values.yaml` and `deploy/helm-chart/exascaler-csi-file-driver-config.yaml` according to your Kubernetes and Exascaler clusters environment
+
+3. Run
+`helm install exascaler-csi-file-driver deploy/helm-chart/`
+
+# Uninstall
+`helm uninstall exascaler-csi-file-driver`
+
+### Using docker load and kubectl commands
+
+   ```bash
    docker load -i /opt/exascaler-csi-file-driver/bin/exascaler-csi-file-driver.tar
    ```
 
@@ -46,9 +60,23 @@ Releases can be found here - https://github.com/DDNStorage/exa-csi-driver/releas
    ```
 Edit `/etc/exascaler-csi-file-driver-v1.0/exascaler-csi-file-driver-config.yaml` file. Driver configuration example:
    ```yaml
-   exaFS: 10.3.196.24@tcp:/csi             # Full path to EXAscaler filesystem
-   mountPoint: /exaFS                      # Mountpoint where EXAscaler filesystem will be mounted on the host
-   debug: true                             # more logs
+   exascaler_map:
+     exa1:
+       mountPoint: /exaFS                                          # mountpoint on the host where the exaFS will be mounted
+       exaFS: 10.204.86.114@tcp:/testfs                            # default path to exa filesystem
+       zone: zone-1
+
+     exa2:
+       mountPoint: /exaFS-zone-2                                          # mountpoint on the host where the exaFS will be mounted
+       exaFS: 10.204.86.114@tcp:/testfs/zone-2                            # default path to exa filesystem
+       zone: zone-2
+
+     exa3:
+       mountPoint: /exaFS-zone-3                                          # mountpoint on the host where the exaFS will be mounted
+       exaFS: 10.204.86.114@tcp:/testfs/zone-3                            # default path to exa filesystem
+       zone: zone-3
+
+   debug: true
    ```
 
 3. Create Kubernetes secret from the file:
@@ -74,6 +102,11 @@ kind: StorageClass
 metadata:
   name: exascaler-csi-file-driver-sc-nginx-dynamic
 provisioner: exa.csi.ddn.com
+allowedTopologies:
+- matchLabelExpressions:
+  - key: topology.kubernetes.io/zone
+    values:
+    - zone-1
 mountOptions:                        # list of options for `mount -o ...` command
 #  - noatime                         #
 parameters:
@@ -109,7 +142,12 @@ kind: StorageClass
 metadata:
   name: exascaler-csi-driver-sc-nginx-persistent
 provisioner:  exa.csi.ddn.com
-mountOptions:                        # list of options for `mount -o ...` command
+allowedTopologies:
+- matchLabelExpressions:
+  - key: topology.kubernetes.io/zone
+    values:
+    - zone-1
+mountOptions:                         # list of options for `mount -o ...` command
 #  - noatime                         #
 ```
 
@@ -130,7 +168,7 @@ spec:
     storage: 1Gi
   csi:
     driver: exa.csi.ddn.com
-    volumeHandle: /exaFS/nginx-persistent
+    volumeHandle: exa1:/exaFS/nginx-persistent
     volumeAttributes:         # volumeAttributes are the alternative of storageClass params for static (precreated) volumes.
       exaMountUid: "1001"     # Uid which will be used to access the volume in pod.
       #mountOptions: ro, flock # list of options for `mount` command
@@ -151,6 +189,8 @@ CSI Parameters:
 | `minProjectId` | Minimum project ID number for automatic generation. Only used when projectId is not provided. | 10000 |
 | `maxProjectId` | Maximum project ID number for automatic generation. Only used when projectId is not provided. | 4294967295 |
 | `generateProjectIdRetries` | Maximum retry count for generating random project ID. Only used when projectId is not provided. | `5` |
+| `zone`        | Topology zone to control where the volume should be created. Should match topology.kubernetes.io/zone label on node(s). | `us-west` |
+| `v1xCompatible` | [Optional] Only used when upgrading the driver from v1.x.x to v2.x.x. Provides compatibility for volumes that were created beore the upgrade. Set it to `true` to point to the Exa cluster that was configured before the upgrade | `false` |
 
 #### _PersistentVolumeClaim_ (pointing to created _PersistentVolume_)
 
@@ -197,12 +237,39 @@ rpm -evh exa-csi-driver
 ```
 2. Download the new driver version (git clone or new ISO)
 3. Copy and edit config file
-   ```
-   cp /opt/exascaler-csi-file-driver/deploy/kubernetes/exascaler-csi-file-driver-config.yaml /etc/exascaler-csi-file-driver-v1.1/exascaler-csi-file-driver-config.yaml
-   ```
+  ```bash
+  cp /opt/exascaler-csi-file-driver/deploy/kubernetes/exascaler-csi-file-driver-config.yaml /etc/exascaler-csi-file-driver-v1.1/exascaler-csi-file-driver-config.yaml
+  ```
+
+  If you are upgrading from v1.x.x to v2.x.x, config file structure will change to a map of Exascaler clusters instead of a flat structure. To support old volume that were created using v1.x.x, old config should be put in the config map with `v1xCompatible: true`. For example:
+
+  v1.x.x config
+  ```bash
+  exaFS: 10.3.196.24@tcp:/csi
+  mountPoint: /exaFS
+  debug: true
+  ```
+  v2.x.x config with support of previously created volumes
+  ```bash
+
+  exascaler_map:
+    exa1:
+      exaFS: 10.3.196.24@tcp:/csi
+      mountPoint: /exaFS
+      v1xCompatible: true
+
+    exa2:
+      exaFS: 10.3.1.200@tcp:/csi-fs
+      mountPoint: /mnt2
+
+  debug: true
+```
+
+Only one of the Exascaler clusters can have `v1xCompatible: true` since old config supported only 1 cluster.
+
 4. Update version in /opt/exascaler-csi-file-driver/deploy/kubernetes/exascaler-csi-file-driver.yaml
 ```
-          image: exascaler-csi-file-driver:v1.1
+          image: exascaler-csi-file-driver:v2.0.0
 ```
 5. Load new image
 ```bash

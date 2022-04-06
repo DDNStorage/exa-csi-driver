@@ -1,0 +1,268 @@
+# ----------------------
+# Exascaler CSI Driver
+# ----------------------
+
+apiVersion: storage.k8s.io/v1
+kind: CSIDriver
+metadata:
+  name: exa.csi.ddn.com
+spec:
+  attachRequired: false
+  podInfoOnMount: false
+---
+
+
+# ---------------------------------
+# Exascaler CSI Controller Server
+# ---------------------------------
+#
+# Runs single driver controller server (driver + provisioner + attacher + snapshotter) on one of the nodes
+#
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: exascaler-csi-controller-service-account
+  namespace: {{ .Values.namespace }}
+---
+
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: exascaler-csi-controller-cluster-role
+rules:
+  - apiGroups: ['']
+    resources: ['secrets']
+    verbs: ['get', 'list', "watch"]
+  - apiGroups: ['']
+    resources: ['persistentvolumes']
+    verbs: ['get', 'list', 'watch', 'create', 'update', 'delete'] # "update" for attacher
+  - apiGroups: ['']
+    resources: ['persistentvolumeclaims']
+    verbs: ['get', 'list', 'watch', 'update']
+  - apiGroups: ['storage.k8s.io']
+    resources: ['storageclasses']
+    verbs: ['get', 'list', 'watch']
+  - apiGroups: ['']
+    resources: ['events']
+    verbs: ['list', 'watch', 'create', 'update', 'patch']
+  - apiGroups: ['snapshot.storage.k8s.io']
+    resources: ['volumesnapshots']
+    verbs: ['get', 'list']
+  - apiGroups: ['snapshot.storage.k8s.io']
+    resources: ['volumesnapshotcontents']
+    verbs: ['get', 'list']
+  # attacher specific
+  - apiGroups: ['']
+    resources: ['nodes']
+    verbs: ['get', 'list', 'watch']
+  - apiGroups: ['csi.storage.k8s.io']
+    resources: ['csinodeinfos']
+    verbs: ['get', 'list', 'watch']
+  - apiGroups: ['storage.k8s.io']
+    resources: ['volumeattachments']
+    verbs: ['get', 'list', 'watch', 'update']
+  # snapshotter specific
+  - apiGroups: ['snapshot.storage.k8s.io']
+    resources: ['volumesnapshotclasses']
+    verbs: ['get', 'list', 'watch']
+  - apiGroups: ['snapshot.storage.k8s.io']
+    resources: ['volumesnapshotcontents']
+    verbs: ['create', 'get', 'list', 'watch', 'update', 'delete']
+  - apiGroups: ['snapshot.storage.k8s.io']
+    resources: ['volumesnapshots']
+    verbs: ['get', 'list', 'watch', 'update']
+  - apiGroups: ['apiextensions.k8s.io']
+    resources: ['customresourcedefinitions']
+    verbs: ['create', 'list', 'watch', 'delete']
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims/status"]
+    verbs: ["update", "patch"]
+  # CSINode specific
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["csinodes"]
+    verbs: ["watch", "list", "get"]
+---
+
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: exascaler-csi-controller-cluster-role-binding
+subjects:
+  - kind: ServiceAccount
+    name: exascaler-csi-controller-service-account
+    namespace: {{ .Values.namespace }}
+roleRef:
+  kind: ClusterRole
+  name: exascaler-csi-controller-cluster-role
+  apiGroup: rbac.authorization.k8s.io
+---
+
+# External Resizer
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: csi-resizer-role
+rules:
+  # The following rule should be uncommented for plugins that require secrets
+  # for provisioning.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["persistentvolumes"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims/status"]
+    verbs: ["update", "patch"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["list", "watch", "create", "update", "patch"]
+
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: csi-resizer-binding
+subjects:
+  - kind: ServiceAccount
+    name: exascaler-csi-controller-service-account
+    namespace: {{ .Values.namespace }}
+roleRef:
+  kind: ClusterRole
+  name: csi-resizer-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: {{ .Values.namespace }}
+  name: external-resizer-cfg
+rules:
+- apiGroups: ["coordination.k8s.io"]
+  resources: ["leases"]
+  verbs: ["get", "watch", "list", "delete", "update", "create"]
+
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: csi-resizer-role-cfg
+  namespace: {{ .Values.namespace }}
+subjects:
+  - kind: ServiceAccount
+    name: exascaler-csi-controller-service-account
+    namespace: {{ .Values.namespace }}
+roleRef:
+  kind: Role
+  name: external-resizer-cfg
+  apiGroup: rbac.authorization.k8s.io
+---
+
+kind: Service
+apiVersion: v1
+metadata:
+  name: exascaler-csi-controller-service
+  labels:
+    app: exascaler-csi-controller
+spec:
+  selector:
+    app: exascaler-csi-controller
+  ports:
+    - name: dummy
+      port: 12345
+---
+
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: exascaler-csi-controller
+spec:
+  # serviceName: exascaler-csi-controller-service
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: exascaler-csi-controller # has to match .spec.template.metadata.labels
+  template:
+    metadata:
+      labels:
+        app: exascaler-csi-controller
+    spec:
+      serviceAccount: exascaler-csi-controller-service-account
+      containers:
+        # csi-provisioner: sidecar container that watches Kubernetes PersistentVolumeClaim objects
+        # and triggers CreateVolume/DeleteVolume against a CSI endpoint
+        - name: csi-provisioner
+          image: k8s.gcr.io/sig-storage/csi-provisioner:v2.2.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - --csi-address=/var/lib/csi/sockets/pluginproxy/csi.sock
+            - --volume-name-prefix={{ .Values.volumeNamePrefix }}
+            - --strict-topology
+            - --immediate-topology=false
+            - --feature-gates=Topology=true
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/csi/sockets/pluginproxy
+        - name: csi-resizer
+          image: quay.io/k8scsi/csi-resizer:v0.4.0
+          args:
+            - "--csi-address=$(ADDRESS)"
+          env:
+            - name: ADDRESS
+              value: /var/lib/csi/sockets/pluginproxy/csi.sock
+          imagePullPolicy: "IfNotPresent"
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/csi/sockets/pluginproxy/
+        - name: driver
+          resources:
+            limits:
+              memory: {{ .Values.resources.limits.memory }}
+              cpu: {{ .Values.resources.limits.cpu }}
+            requests:
+              memory: {{ .Values.resources.requests.memory }}
+              cpu: {{ .Values.resources.requests.cpu }}
+          securityContext:
+            privileged: true
+            capabilities:
+              add: ['SYS_ADMIN']
+            allowPrivilegeEscalation: true
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: "{{ .Values.image.pullPolicy }}"
+          args:
+            - --nodeid=$(KUBE_NODE_NAME)
+            - --endpoint=unix://csi/csi.sock
+            - --role=controller
+          env:
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+            - name: secret
+              mountPath: /config
+              readOnly: true
+            - name: host
+              mountPath: /host
+              mountPropagation: Bidirectional
+      volumes:
+        - name: socket-dir
+          emptyDir:
+        - name: secret
+          secret:
+            secretName: {{ .Values.secretName }}
+        - name: host
+          hostPath:
+            path: /
+            type: Directory
+---
