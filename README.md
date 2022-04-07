@@ -151,6 +151,24 @@ mountOptions:                         # list of options for `mount -o ...` comma
 #  - noatime                         #
 ```
 
+### Topology configuration
+In order to configure CSI driver with kubernetes topology, use the `zone` parameter in driver config or storageClass parameters. Example config file with zones:
+  ```bash
+
+  exascaler_map:
+    exa1:
+      exaFS: 10.3.196.24@tcp:/csi
+      mountPoint: /exaFS
+      zone: us-west
+    exa2:
+      exaFS: 10.3.196.24@tcp:/csi-2
+      mountPoint: /exaFS-zone2
+      zone: us-east
+  ```
+
+This will assign volumes to be created on Exascaler cluster that correspond with the zones requested by allowedTopologies values.
+
+
 #### _PersistentVolume_ configuration
 
 ```yaml
