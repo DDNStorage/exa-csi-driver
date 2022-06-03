@@ -43,7 +43,7 @@ Releases can be found here - https://github.com/DDNStorage/exa-csi-driver/releas
 2. Make changes to `deploy/helm-chart/values.yaml` and `deploy/helm-chart/exascaler-csi-file-driver-config.yaml` according to your Kubernetes and Exascaler clusters environment
 
 3. Run
-`helm install exascaler-csi-file-driver deploy/helm-chart/`
+`helm install -n ${namespace} exascaler-csi-file-driver deploy/helm-chart/`
 
 # Uninstall
 `helm uninstall exascaler-csi-file-driver`
@@ -209,6 +209,7 @@ CSI Parameters:
 | `generateProjectIdRetries` | Maximum retry count for generating random project ID. Only used when projectId is not provided. | `5` |
 | `zone`        | Topology zone to control where the volume should be created. Should match topology.kubernetes.io/zone label on node(s). | `us-west` |
 | `v1xCompatible` | [Optional] Only used when upgrading the driver from v1.x.x to v2.x.x. Provides compatibility for volumes that were created beore the upgrade. Set it to `true` to point to the Exa cluster that was configured before the upgrade | `false` |
+| `tempMountPoint` | [Optional] Used when `exaFS` points to a subdirectory that does not exist on Exascaler and will be automatically created by the driver. This parameter sets the directory where Exascaler filesystem will be temporarily mounted to create the subdirectory. | `/tmp/exafs-mnt` |
 
 #### _PersistentVolumeClaim_ (pointing to created _PersistentVolume_)
 
