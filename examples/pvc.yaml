@@ -6,7 +6,7 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: exascaler-csi-file-driver-sc
-provisioner: exascaler-csi-file-driver.tintri.com
+provisioner: exa.csi.ddn.com
 allowVolumeExpansion: true
 ---
 

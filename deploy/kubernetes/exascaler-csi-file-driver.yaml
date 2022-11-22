@@ -240,7 +240,7 @@ spec:
             capabilities:
               add: ['SYS_ADMIN']
             allowPrivilegeEscalation: true
-          image: exascaler-csi-file-driver:master
+          image: docker.io/library/exascaler-csi-file-driver:vmaster
           imagePullPolicy: IfNotPresent
           args:
             - --nodeid=$(KUBE_NODE_NAME)
@@ -355,7 +355,7 @@ spec:
             capabilities:
               add: ['SYS_ADMIN']
             allowPrivilegeEscalation: true
-          image: exascaler-csi-file-driver:master
+          image: docker.io/library/exascaler-csi-file-driver:vmaster
           imagePullPolicy: IfNotPresent
           args:
             - --nodeid=$(KUBE_NODE_NAME)
