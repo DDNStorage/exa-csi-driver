@@ -14,6 +14,14 @@ Releases can be found here - https://github.com/DDNStorage/exa-csi-driver/releas
 |Mount options|GA|>= 1.0.0|>= 1.0.0|>=1.18|
 |Topology|GA|>= v2.0.0|>= v1.0.0|>=1.17|
 
+## Access Modes support
+|Access mode| Supported in version|
+|--- |--- |
+|ReadWriteOnce| >=1.0.0 |
+|ReadOnlyMany| >=2.2.0 |
+|ReadWriteMany| >=1.0.0 |
+|ReadWriteOncePod| >=2.2.0 |
+
 ## Requirements
 
 - Kubernetes cluster must allow privileged pods, this flag must be set for the API server and the kubelet
