@@ -23,9 +23,9 @@ Releases can be found here - https://github.com/DDNStorage/exa-csi-driver/releas
 |ReadWriteOncePod| >=2.2.0 |
 
 ## Openshift Certification
-|Openshift Version| CSI driver Version|
-|---|---|
-|v4.13|v2.2.2|
+|Openshift Version| CSI driver Version| EXA Version|
+|---|---|---|
+|v4.13|v2.2.2|v6.3.0|
 
 
 ## Requirements
