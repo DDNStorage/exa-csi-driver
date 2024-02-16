@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lustre-ci-dockerfile
+data:
+  dockerfile: |
+      ARG DTK_AUTO
+      FROM ${DTK_AUTO} as builder
+      ARG KERNEL_VERSION
+      WORKDIR /build/
+      ENV SMDEV_CONTAINER_OFF=1
+      RUN git clone https://github.com/Qeas/rpms.git # change this to your repo with matching rpms
+      RUN yum -y install rpms/*.rpm
+      RUN mkdir -p /opt/lib && \
+          cp -r /lib/modules /opt/lib/modules
+      RUN depmod -b /opt
