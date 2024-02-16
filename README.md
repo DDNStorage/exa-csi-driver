@@ -37,27 +37,121 @@ Releases can be found here - https://github.com/DDNStorage/exa-csi-driver/releas
 - Mount propagation must be enabled, the Docker daemon for the cluster must allow shared mounts
   ([instructions](https://github.com/kubernetes-csi/docs/blob/735f1ef4adfcb157afce47c64d750b71012c8151/book/src/Setup.md#enabling-mount-propagation))
 
-
 ## Installation
-1. Clone or untar driver (depending on where you get the driver)
-   ```bash
-   git clone https://github.com/DDNStorage/exa-csi-driver.git /opt/exascaler-csi-file-driver
-   or
-   rpm -Uvh exa-csi-driver-1.0-1.el7.x86_64.rpm
-   ```
+Clone or untar driver (depending on where you get the driver)
+```bash
+git clone -b <driver version> https://github.com/DDNStorage/exa-csi-driver.git /opt/exascaler-csi-file-driver
+```
+e.g:-
+```bash
+git clone -b 2.2.1 https://github.com/DDNStorage/exa-csi-driver.git /opt/exascaler-csi-file-driver
+```
+or
+```bash
+rpm -Uvh exa-csi-driver-1.0-1.el7.x86_64.rpm
+```
 
+## Openshift
+    Make sure that `openshift: true` in `deploy/openshift/exascaler-csi-file-driver-config.yaml`.
+
+### Building lustre rpms
+You will need a vm with the kernel version matching that of the Openshift nodes. To check on nodes:
+```bash
+oc get nodes
+oc debug node/c1-pk6k4-worker-0-2j6w8
+uname -r
+```
+
+On the builder vm, install the matching kernel and log in to it, example for Rhel 9.2:
+```bash
+# login to subscription-manager
+subscription-manager register --username <username> --password <password> --auto-attach
+# list available kernels
+yum --showduplicates list available kernel
+yum install kernel-<version>-<revision>.<arch>  # e.g.: yum install kernel-5.14.0-284.25.1.el9_2.x86_64
+grubby --info=ALL | grep title
+title="Red Hat Enterprise Linux (5.14.0-284.11.1.el9_2.x86_64) 9.2 (Plow)"                <---- 0
+title="Red Hat Enterprise Linux (5.14.0-284.25.1.el9_2.x86_64) 9.2 (Plow)"                <---- 1
+
+grub2-set-default 1
+reboot
+```
+
+Copy EXAScaler client tar from the EXAScaler server:
+```bash
+scp root@<exa-server-ip>:/scratch/EXAScaler-<version>/exa-client-<version>.tar.gz .
+tar -xvf exa-client-<version>.tar.gz
+cd exa-client
+./exa_client_deploy.py -i
+```
+
+This will build the rpms and install the client.
+Upload the rpms to any repository available from the cluster and change deploy/openshift/lustre-module/lustre-dockerfile-configmap.yaml lines 12-13 accordingly.
+  ```
+  RUN git clone https://github.com/Qeas/rpms.git # change this to your repo with matching rpms
+  RUN yum -y install rpms/*.rpm
+  ```
+
+### Loading lustre modules in Openshift
+
+Before loading the lustre modules, make sure to install Openshift Kernel Module Management (KMM) via Openshift console.
+
+```bash
+oc create -n openshift-kmm -f deploy/openshift/lustre-module/lustre-dockerfile-configmap.yaml
+oc apply -n openshift-kmm -f deploy/openshift/lustre-module/lnet-mod.yaml
+```
+Wait for the builder pod (e.g. `lnet-build-5f265-build`) to finish. After builder finishes,
+you should have `lnet-8b72w-6fjwh` running on each worker node.
+```bash
+# run ko2iblnd-mod if you are using Infiniband network
+oc apply -n openshift-kmm -f deploy/openshift/lustre-module/ko2iblnd-mod.yaml
+```
+
+Make changes to `deploy/openshift/lustre-module/lnet-configuration-ds.yaml` line 38 according to the cluster's network
+```
+lnetctl net add --net tcp --if br-ex # change interface according to your cluster
+```
+Configure lnet and install lustre
+```
+oc apply -n openshift-kmm -f deploy/openshift/lustre-module/lnet-configuration-ds.yaml
+oc apply -n openshift-kmm -f deploy/openshift/lustre-module/lustre-mod.yaml
+```
+
+### Installing the driver
+
+```bash
+oc create -n openshift-kmm secret generic exascaler-csi-file-driver-config --from-file=deploy/openshift/exascaler-csi-file-driver-config.yaml
+oc apply -n openshift-kmm -f deploy/openshift/exascaler-csi-file-driver.yaml
+```
+
+### Uninstall
+
+```bash
+oc delete -n openshift-kmm secret exascaler-csi-file-driver-config
+oc delete -n openshift-kmm -f deploy/openshift/exascaler-csi-file-driver.yaml
+oc delete -n openshift-kmm -f deploy/openshift/lustre-module/lustre-dockerfile-configmap.yaml
+oc delete -n openshift-kmm -f deploy/openshift/lustre-module/lnet-mod.yaml
+oc delete -n openshift-kmm -f deploy/openshift/lustre-module/ko2iblnd-mod.yaml
+oc delete -n openshift-kmm -f deploy/openshift/lustre-module/lnet-configuration-ds.yaml
+oc delete -n openshift-kmm -f deploy/openshift/lustre-module/lustre-mod.yaml
+oc get images | grep lustre-client-moduleloader | awk '{print $1}' | xargs oc delete image
+```
+
+## Kubernetes
 ### Using helm chart
 
-2. Make changes to `deploy/helm-chart/values.yaml` and `deploy/helm-chart/exascaler-csi-file-driver-config.yaml` according to your Kubernetes and Exascaler clusters environment
+Make changes to `deploy/helm-chart/values.yaml` and `deploy/helm-chart/exascaler-csi-file-driver-config.yaml` according to your Kubernetes and EXAScaler clusters environment
 
-3. Run
 `helm install -n ${namespace} exascaler-csi-file-driver deploy/helm-chart/`
 
-# Uninstall
+#### Uninstall
 `helm uninstall exascaler-csi-file-driver`
 
-### Using docker load and kubectl commands
+#### Upgrade
+1. Make any necessary changes to the chart, for example new driver version: `tag: "v2.2.2"` in `deploy/helm-chart/values.yaml`.
+2. Run `helm upgrade -n ${namespace} exascaler-csi-file-driver deploy/helm-chart/`
 
+### Using docker load and kubectl commands
    ```bash
    docker load -i /opt/exascaler-csi-file-driver/bin/exascaler-csi-file-driver.tar
    ```
@@ -115,7 +209,7 @@ metadata:
 provisioner: exa.csi.ddn.com
 allowedTopologies:
 - matchLabelExpressions:
-  - key: topology.kubernetes.io/zone
+  - key: topology.exa.csi.ddn.com/zone
     values:
     - zone-1
 mountOptions:                        # list of options for `mount -o ...` command
@@ -155,7 +249,7 @@ metadata:
 provisioner:  exa.csi.ddn.com
 allowedTopologies:
 - matchLabelExpressions:
-  - key: topology.kubernetes.io/zone
+  - key: topology.exa.csi.ddn.com/zone
     values:
     - zone-1
 mountOptions:                         # list of options for `mount -o ...` command
@@ -219,7 +313,7 @@ CSI Parameters:
 | `minProjectId` | Minimum project ID number for automatic generation. Only used when projectId is not provided. | 10000 |
 | `maxProjectId` | Maximum project ID number for automatic generation. Only used when projectId is not provided. | 4294967295 |
 | `generateProjectIdRetries` | Maximum retry count for generating random project ID. Only used when projectId is not provided. | `5` |
-| `zone`        | Topology zone to control where the volume should be created. Should match topology.kubernetes.io/zone label on node(s). | `us-west` |
+| `zone`        | Topology zone to control where the volume should be created. Should match topology.exa.csi.ddn.com/zone label on node(s). | `us-west` |
 | `v1xCompatible` | [Optional] Only used when upgrading the driver from v1.x.x to v2.x.x. Provides compatibility for volumes that were created beore the upgrade. Set it to `true` to point to the Exa cluster that was configured before the upgrade | `false` |
 | `tempMountPoint` | [Optional] Used when `exaFS` points to a subdirectory that does not exist on Exascaler and will be automatically created by the driver. This parameter sets the directory where Exascaler filesystem will be temporarily mounted to create the subdirectory. | `/tmp/exafs-mnt` |
 

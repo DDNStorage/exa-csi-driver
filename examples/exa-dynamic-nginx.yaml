@@ -10,7 +10,7 @@ provisioner: exa.csi.ddn.com
 # volumeBindingMode: WaitForFirstConsumer
 allowedTopologies:
 - matchLabelExpressions:
-  - key: topology.kubernetes.io/zone
+  - key: topology.exa.csi.ddn.com/zone
     values:
     - zone-1
 allowVolumeExpansion: true
@@ -50,13 +50,15 @@ metadata:
 spec:
   topologySpreadConstraints:
   - maxSkew: 1
-    topologyKey: topology.kubernetes.io/zone
+    topologyKey: topology.exa.csi.ddn.com/zone
     whenUnsatisfiable: DoNotSchedule
     labelSelector:
       matchLabels:
-        topology.kubernetes.io/zone: zone-1
+        topology.exa.csi.ddn.com/zone: zone-1
   securityContext:
     runAsUser: 1001
+    # runAsUser: 1002
+    # fsGroup: 1001
   containers:
     - image: nginxinc/nginx-unprivileged
       imagePullPolicy: IfNotPresent

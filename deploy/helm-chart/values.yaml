@@ -11,7 +11,7 @@ image:
   repository: "quay.io/ddn/exascaler-csi-file-driver"
   pullPolicy: "Always"
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "master"
+  tag: "v2.2.1"
 
 resources:
   limits:

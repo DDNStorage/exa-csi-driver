@@ -1,0 +1,99 @@
+# --------------------------------------
+# Exascaler CSI Driver - Storage Class
+# --------------------------------------
+
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: exascaler-csi-file-driver-sc-2
+provisioner: exa.csi.ddn.com
+# volumeBindingMode: WaitForFirstConsumer
+allowedTopologies:
+- matchLabelExpressions:
+  - key: topology.exa.csi.ddn.com/zone
+    values:
+    - zone-1
+allowVolumeExpansion: true
+parameters:
+  projectId: "1000730000"          # Points to a project id to be used to set volume quota.
+  exaMountUid: "1000730000"           # Uid which will be used to access the volume in pod. Should be synced between EXA server and clients.
+  # exaFS: "10.204.86.114@tcp:/testfs"   # Overrides exaFS value from config. Use this to support multiple EXA filesystems.
+  # mountPoint: "/exaFS"
+# mountOptions:
+#   - noatime
+#   - noflock
+# ---
+
+# ------------------------------------------------
+# Exaxscaler CSI Driver - Persistent Volume Claim
+# ------------------------------------------------
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: exascaler-csi-file-driver-pvc-replicaset
+spec:
+  storageClassName: exascaler-csi-file-driver-sc-2
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+---
+
+
+# ---------
+# Nginx pods
+# ---------
+
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: nginx-dynamic-volume
+  labels:
+    app: nginx-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx-service
+  template:
+    metadata:
+      labels:
+        app: nginx-service
+    spec:
+      securityContext:
+        runAsUser: 1000730000
+      containers:
+        - image: nginxinc/nginx-unprivileged
+          imagePullPolicy: IfNotPresent
+          name: nginx
+          ports:
+            - containerPort: 80
+              protocol: TCP
+          volumeMounts:
+            - mountPath: /data
+              name: exa-csi-driver-data
+      volumes:
+        - name: exa-csi-driver-data
+          persistentVolumeClaim:
+            claimName: exascaler-csi-file-driver-pvc-replicaset
+            readOnly: false
+---
+
+
+# -----------------
+# Service for nginx
+# -----------------
+
+kind: Service
+apiVersion: v1
+metadata:
+  name: nginx-service-dynamic-volume
+spec:
+  selector:
+    app: nginx-service
+  ports:
+  - protocol: TCP
+    port: 8888
+    targetPort: 80

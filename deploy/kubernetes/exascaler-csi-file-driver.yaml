@@ -66,7 +66,7 @@ rules:
     verbs: ['get', 'list']
   # attacher specific
   - apiGroups: ['']
-    resources: ['nodes']
+    resources: ['nodes', 'pods']
     verbs: ['get', 'list', 'watch']
   - apiGroups: ['csi.storage.k8s.io']
     resources: ['csinodeinfos']
@@ -253,7 +253,7 @@ spec:
             capabilities:
               add: ['SYS_ADMIN']
             allowPrivilegeEscalation: true
-          image: exascaler-csi-file-driver:master
+          image: quay.io/ddn/exascaler-csi-file-driver:v2.2.2
           imagePullPolicy: IfNotPresent
           args:
             - --nodeid=$(KUBE_NODE_NAME)
@@ -308,6 +308,9 @@ rules:
   - apiGroups: ['']
     resources: ['events']
     verbs: ['get', 'list', 'watch', 'create', 'update', 'patch']
+  - apiGroups: ['']
+    resources: ['nodes']
+    verbs: ['get']
 ---
 
 kind: ClusterRoleBinding
@@ -368,7 +371,7 @@ spec:
             capabilities:
               add: ['SYS_ADMIN']
             allowPrivilegeEscalation: true
-          image: exascaler-csi-file-driver:master
+          image: quay.io/ddn/exascaler-csi-file-driver:v2.2.2
           imagePullPolicy: IfNotPresent
           args:
             - --nodeid=$(KUBE_NODE_NAME)
