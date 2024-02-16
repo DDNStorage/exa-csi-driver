@@ -22,6 +22,12 @@ Releases can be found here - https://github.com/DDNStorage/exa-csi-driver/releas
 |ReadWriteMany| >=1.0.0 |
 |ReadWriteOncePod| >=2.2.0 |
 
+## Openshift Certification
+|Openshift Version| CSI driver Version|
+|---|---|
+|v4.13|v2.2.2|
+
+
 ## Requirements
 
 - Kubernetes cluster must allow privileged pods, this flag must be set for the API server and the kubelet
