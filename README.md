@@ -35,10 +35,10 @@ Releases can be found here - https://github.com/DDNStorage/exa-csi-driver/releas
   ```
   --allow-privileged=true
   ```
-- Required the API server and the kubelet feature gates
+- Required API server and kubelet feature gates for k8s version < 1.16 (skip this step for k8s >= 1.16)
   ([instructions](https://github.com/kubernetes-csi/docs/blob/735f1ef4adfcb157afce47c64d750b71012c8151/book/src/Setup.md#enabling-features)):
   ```
-  --feature-gates=VolumePVCDataSource=true,ExpandInUsePersistentVolumes=true,ExpandCSIVolumes=true,ExpandPersistentVolumes=true
+  --feature-gates=ExpandInUsePersistentVolumes=true,ExpandCSIVolumes=true,ExpandPersistentVolumes=true
   ```
 - Mount propagation must be enabled, the Docker daemon for the cluster must allow shared mounts
   ([instructions](https://github.com/kubernetes-csi/docs/blob/735f1ef4adfcb157afce47c64d750b71012c8151/book/src/Setup.md#enabling-mount-propagation))
