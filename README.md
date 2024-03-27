@@ -27,7 +27,6 @@ Releases can be found here - https://github.com/DDNStorage/exa-csi-driver/releas
 |---|---|---|
 |v4.13|v2.2.2|v6.3.0|
 
-
 ## Requirements
 
 - Kubernetes cluster must allow privileged pods, this flag must be set for the API server and the kubelet
