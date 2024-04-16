@@ -18,14 +18,14 @@ Releases can be found here - https://github.com/DDNStorage/exa-csi-driver/releas
 |Access mode| Supported in version|
 |--- |--- |
 |ReadWriteOnce| >=1.0.0 |
-|ReadOnlyMany| >=2.2.0 |
+|ReadOnlyMany| >=2.3.0 |
 |ReadWriteMany| >=1.0.0 |
-|ReadWriteOncePod| >=2.2.0 |
+|ReadWriteOncePod| >=2.3.0 |
 
 ## Openshift Certification
 |Openshift Version| CSI driver Version| EXA Version|
 |---|---|---|
-|v4.13|v2.2.2|v6.3.0|
+|v4.13|v2.2.3|v6.3.0|
 
 ## Requirements
 
@@ -49,7 +49,7 @@ git clone -b <driver version> https://github.com/DDNStorage/exa-csi-driver.git /
 ```
 e.g:-
 ```bash
-git clone -b 2.2.1 https://github.com/DDNStorage/exa-csi-driver.git /opt/exascaler-csi-file-driver
+git clone -b 2.2.3 https://github.com/DDNStorage/exa-csi-driver.git /opt/exascaler-csi-file-driver
 ```
 or
 ```bash
