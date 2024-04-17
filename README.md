@@ -153,7 +153,7 @@ Make changes to `deploy/helm-chart/values.yaml` and `deploy/helm-chart/exascaler
 `helm uninstall exascaler-csi-file-driver`
 
 #### Upgrade
-1. Make any necessary changes to the chart, for example new driver version: `tag: "v2.2.2"` in `deploy/helm-chart/values.yaml`.
+1. Make any necessary changes to the chart, for example new driver version: `tag: "v2.2.3"` in `deploy/helm-chart/values.yaml`.
 2. Run `helm upgrade -n ${namespace} exascaler-csi-file-driver deploy/helm-chart/`
 
 ### Using docker load and kubectl commands
@@ -399,7 +399,7 @@ Only one of the Exascaler clusters can have `v1xCompatible: true` since old conf
 
 4. Update version in /opt/exascaler-csi-file-driver/deploy/kubernetes/exascaler-csi-file-driver.yaml
 ```
-          image: exascaler-csi-file-driver:v2.0.0
+          image: exascaler-csi-file-driver:v2.2.3
 ```
 5. Load new image
 ```bash
