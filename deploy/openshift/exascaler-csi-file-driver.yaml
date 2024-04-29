@@ -280,7 +280,7 @@ spec:
           - name: socket-dir
             mountPath: /csi/
       - name: csi-resizer
-        image: k8s.gcr.io/sig-storage/csi-resizer:v1.4.0
+        image: registry.k8s.io/sig-storage/csi-resizer:v1.4.0
         args:
           - "--csi-address=$(ADDRESS)"
         env:
