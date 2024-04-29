@@ -6,4 +6,5 @@ metadata:
   namespace: {{ .Values.namespace }}
 type: "Opaque"
 data:
-{{ (.Files.Glob "exascaler-csi-file-driver-config.yaml").AsSecrets | nindent 2 }}
+  exascaler-csi-file-driver-config.yaml: |
+    {{- .Values.config | toYaml | nindent 4 }}
