@@ -26,7 +26,7 @@ spec:
       - command:
         - sleep
         - infinity
-        image: image-registry.openshift-image-registry.svc:5000/openshift-kmm/lustre-client-moduleloader:2.14.0_ddn119-1.el9
+        image: "image-registry.openshift-image-registry.svc:5000/openshift-kmm/lustre-client-moduleloader:5.14.0-284.25.1.el9_2.x86_64"
         imagePullPolicy: IfNotPresent
         lifecycle:
           postStart:
@@ -41,7 +41,7 @@ spec:
               command:
                 - /bin/sh
                 - -c
-                - lnetctl lnet unconfigure && lustre_rmmod
+                - lnetctl lnet unconfigure && lustre_rmmod && yum remove -y lustre-client kmod-lustre-client && rm -rf /opt/lib/modules/$(uname -r)/extra/lustre-client
         name: lnet-configuration
         resources: {}
         securityContext:

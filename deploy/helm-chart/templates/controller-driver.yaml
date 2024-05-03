@@ -54,7 +54,7 @@ rules:
     verbs: ['get', 'list']
   # attacher specific
   - apiGroups: ['']
-    resources: ['nodes']
+    resources: ['nodes', 'pods']
     verbs: ['get', 'list', 'watch']
   - apiGroups: ['csi.storage.k8s.io']
     resources: ['csinodeinfos']
@@ -186,7 +186,6 @@ metadata:
   name: exascaler-csi-controller
 spec:
   # serviceName: exascaler-csi-controller-service
-  replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
       app: exascaler-csi-controller # has to match .spec.template.metadata.labels

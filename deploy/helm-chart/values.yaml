@@ -5,13 +5,11 @@
 namespace: "default"  # replace with non-default namespace name if needed
 volumeNamePrefix: "pvc-exa"
 
-replicaCount: 1
-
 image:
   repository: "quay.io/ddn/exascaler-csi-file-driver"
   pullPolicy: "Always"
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "v2.2.1"
+  tag: "v2.2.4"
 
 resources:
   limits:

@@ -15,8 +15,8 @@ allowedTopologies:
     - zone-1
 allowVolumeExpansion: true
 parameters:
-  # projectId: "100001"          # Points to a project id to be used to set volume quota.
   exaMountUid: "1001"           # Uid which will be used to access the volume in pod. Should be synced between EXA server and clients.
+  # projectId: "100001"          # Points to a project id to be used to set volume quota.
   # bindMount: "false"
   # exaFS: "10.204.86.114@tcp:/testfs"   # Overrides exaFS value from config. Use this to support multiple EXA filesystems.
   # mountPoint: "/exaFS"

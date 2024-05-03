@@ -16,7 +16,7 @@ spec:
       kernelMappings:  # At least one item is required
         # For any other kernel, build the image using the Dockerfile in the my-kmod ConfigMap.
         - regexp: '^.+$'
-          containerImage: "image-registry.openshift-image-registry.svc:5000/openshift-kmm/lustre-client-moduleloader:2.14.0_ddn119-1.el9"
+          containerImage: "image-registry.openshift-image-registry.svc:5000/openshift-kmm/lustre-client-moduleloader:5.14.0-284.25.1.el9_2.x86_64"
           build:
             baseImageRegistryTLS:
               # Optional and not recommended! If true, the build will be allowed to pull the image in the Dockerfile's

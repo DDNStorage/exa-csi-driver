@@ -59,12 +59,20 @@ spec:
         # 1) registers the CSI driver with kubelet
         # 2) adds the drivers custom NodeId to a label on the Kubernetes Node API Object
         - name: driver-registrar
-          image: quay.io/k8scsi/csi-node-driver-registrar:v1.1.0
+          image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.9.0
           imagePullPolicy: IfNotPresent
           args:
-            - --v=3
+            - --v=5
             - --csi-address=/csi/csi.sock
-            - --kubelet-registration-path=/var/lib/kubelet/plugins_registry/exa.csi.ddn.com/csi.sock
+            - --kubelet-registration-path=/var/lib/kubelet/plugins/exa.csi.ddn.com/csi.sock
+          livenessProbe:
+            exec:
+              command:
+              - /csi-node-driver-registrar
+              - --kubelet-registration-path=/var/lib/kubelet/plugins/exa.csi.ddn.com/csi.sock
+              - --mode=kubelet-registration-probe
+            initialDelaySeconds: 30
+            timeoutSeconds: 15
           env:
             - name: KUBE_NODE_NAME
               valueFrom:
@@ -113,7 +121,7 @@ spec:
       volumes:
         - name: socket-dir
           hostPath:
-            path: /var/lib/kubelet/plugins_registry/exa.csi.ddn.com
+            path: /var/lib/kubelet/plugins/exa.csi.ddn.com
             type: DirectoryOrCreate
         - name: registration-dir
           hostPath:

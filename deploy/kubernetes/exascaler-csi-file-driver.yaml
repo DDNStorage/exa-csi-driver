@@ -1,4 +1,4 @@
-# Exascaler CSI Driver (1.0.0)
+# Exascaler CSI Driver (2.2.4)
 #
 # This driver version works with Kubernetes version >=1.14
 #
@@ -24,12 +24,9 @@ spec:
 ---
 
 
-# ---------------------------------
-# Exascaler CSI Controller Server
-# ---------------------------------
-#
-# Runs single driver controller server (driver + provisioner + attacher + snapshotter) on one of the nodes
-#
+# ----
+# RBAC
+# ----
 
 apiVersion: v1
 kind: ServiceAccount
@@ -192,13 +189,19 @@ spec:
       port: 12345
 ---
 
+# ---------------------------------
+# Exascaler CSI Controller Server
+# ---------------------------------
+#
+# Runs single driver controller server (driver + provisioner + attacher + snapshotter) on one of the nodes.
+# Controller driver deployment does not support running multiple replicas.
+#
 kind: Deployment
 apiVersion: apps/v1
 metadata:
   name: exascaler-csi-controller
 spec:
   # serviceName: exascaler-csi-controller-service
-  replicas: 1
   selector:
     matchLabels:
       app: exascaler-csi-controller # has to match .spec.template.metadata.labels
@@ -253,8 +256,8 @@ spec:
             capabilities:
               add: ['SYS_ADMIN']
             allowPrivilegeEscalation: true
-          image: quay.io/ddn/exascaler-csi-file-driver:v2.2.2
-          imagePullPolicy: IfNotPresent
+          image: quay.io/ddn/exascaler-csi-file-driver:v2.2.4
+          imagePullPolicy: Always
           args:
             - --nodeid=$(KUBE_NODE_NAME)
             - --endpoint=unix://csi/csi.sock
@@ -349,12 +352,20 @@ spec:
         # 1) registers the CSI driver with kubelet
         # 2) adds the drivers custom NodeId to a label on the Kubernetes Node API Object
         - name: driver-registrar
-          image: quay.io/k8scsi/csi-node-driver-registrar:v1.1.0
+          image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.9.0
           imagePullPolicy: IfNotPresent
           args:
-            - --v=3
+            - --v=5
             - --csi-address=/csi/csi.sock
-            - --kubelet-registration-path=/var/lib/kubelet/plugins_registry/exa.csi.ddn.com/csi.sock
+            - --kubelet-registration-path=/var/lib/kubelet/plugins/exa.csi.ddn.com/csi.sock
+          livenessProbe:
+            exec:
+              command:
+              - /csi-node-driver-registrar
+              - --kubelet-registration-path=/var/lib/kubelet/plugins/exa.csi.ddn.com/csi.sock
+              - --mode=kubelet-registration-probe
+            initialDelaySeconds: 30
+            timeoutSeconds: 15
           env:
             - name: KUBE_NODE_NAME
               valueFrom:
@@ -371,8 +382,8 @@ spec:
             capabilities:
               add: ['SYS_ADMIN']
             allowPrivilegeEscalation: true
-          image: quay.io/ddn/exascaler-csi-file-driver:v2.2.2
-          imagePullPolicy: IfNotPresent
+          image: quay.io/ddn/exascaler-csi-file-driver:v2.2.4
+          imagePullPolicy: Always
           args:
             - --nodeid=$(KUBE_NODE_NAME)
             - --endpoint=unix://csi/csi.sock
@@ -396,7 +407,7 @@ spec:
       volumes:
         - name: socket-dir
           hostPath:
-            path: /var/lib/kubelet/plugins_registry/exa.csi.ddn.com
+            path: /var/lib/kubelet/plugins/exa.csi.ddn.com
             type: DirectoryOrCreate
         - name: registration-dir
           hostPath:

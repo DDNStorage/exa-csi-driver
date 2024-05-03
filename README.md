@@ -12,20 +12,21 @@ Releases can be found here - https://github.com/DDNStorage/exa-csi-driver/releas
 |Expand volume|GA|>= 1.0.0|>= 1.1.0|>=1.18|
 |StorageClass Secrets|GA|>= 1.0.0|>=1.0.0|>=1.18|
 |Mount options|GA|>= 1.0.0|>= 1.0.0|>=1.18|
-|Topology|GA|>= v2.0.0|>= v1.0.0|>=1.17|
+|Topology|GA|>= 2.0.0|>= 1.0.0|>=1.17|
 
 ## Access Modes support
 |Access mode| Supported in version|
 |--- |--- |
 |ReadWriteOnce| >=1.0.0 |
-|ReadOnlyMany| >=2.3.0 |
+|ReadOnlyMany| >=2.2.3 |
 |ReadWriteMany| >=1.0.0 |
-|ReadWriteOncePod| >=2.3.0 |
+|ReadWriteOncePod| >=2.2.3 |
 
 ## Openshift Certification
 |Openshift Version| CSI driver Version| EXA Version|
 |---|---|---|
-|v4.13|v2.2.3|v6.3.0|
+|v4.13| >=v2.2.3|v6.3.0|
+|v4.15| >=v2.2.4|v6.3.0|
 
 ## Requirements
 
@@ -49,7 +50,7 @@ git clone -b <driver version> https://github.com/DDNStorage/exa-csi-driver.git /
 ```
 e.g:-
 ```bash
-git clone -b 2.2.3 https://github.com/DDNStorage/exa-csi-driver.git /opt/exascaler-csi-file-driver
+git clone -b 2.2.4 https://github.com/DDNStorage/exa-csi-driver.git /opt/exascaler-csi-file-driver
 ```
 or
 ```bash
@@ -153,13 +154,15 @@ Make changes to `deploy/helm-chart/values.yaml` and `deploy/helm-chart/exascaler
 `helm uninstall exascaler-csi-file-driver`
 
 #### Upgrade
-1. Make any necessary changes to the chart, for example new driver version: `tag: "v2.2.3"` in `deploy/helm-chart/values.yaml`.
+1. Make any necessary changes to the chart, for example new driver version: `tag: "v2.2.4"` in `deploy/helm-chart/values.yaml`.
 2. Run `helm upgrade -n ${namespace} exascaler-csi-file-driver deploy/helm-chart/`
 
 ### Using docker load and kubectl commands
    ```bash
    docker load -i /opt/exascaler-csi-file-driver/bin/exascaler-csi-file-driver.tar
    ```
+#### Verify version
+kubectl get deploy/exascaler-csi-controller -o jsonpath="{..image}"
 
 2. Copy /opt/exascaler-csi-file-driver/deploy/kubernetes/exascaler-csi-file-driver-config.yaml to /etc/exascaler-csi-file-driver-v1.0/exascaler-csi-file-driver-config.yaml
    ```
@@ -170,7 +173,7 @@ Edit `/etc/exascaler-csi-file-driver-v1.0/exascaler-csi-file-driver-config.yaml`
    exascaler_map:
      exa1:
        mountPoint: /exaFS                                          # mountpoint on the host where the exaFS will be mounted
-       exaFS: 192.168.88.114@tcp2 :/testfs                            # default path to exa filesystem
+       exaFS: 192.168.88.114@tcp2:192.168.98.114@tcp2:/testfs                            # default path to exa filesystem
        managementIp: 10.204.86.114@tcp                           # network for management operations, such as create/delete volume
        zone: zone-1
 
@@ -182,7 +185,7 @@ Edit `/etc/exascaler-csi-file-driver-v1.0/exascaler-csi-file-driver-config.yaml`
 
      exa3:
        mountPoint: /exaFS-zone-3                                          # mountpoint on the host where the exaFS will be mounted
-       exaFS: 192.168.98.113@tcp2:/testfs/zone-3                            # default path to exa filesystem
+       exaFS: 192.168.98.113@tcp2:192.168.88.113@tcp2:/testfs/zone-3                            # default path to exa filesystem
        managementIp: 10.204.86.114@tcp                           # network for management operations, such as create/delete volume
        zone: zone-3
 
@@ -384,12 +387,12 @@ rpm -evh exa-csi-driver
 
   exascaler_map:
     exa1:
-      exaFS: 10.3.196.24@tcp:/csi
+      exaFS: 10.3.196.24@tcp:10.3.199.24@tcp:/csi
       mountPoint: /exaFS
       v1xCompatible: true
 
     exa2:
-      exaFS: 10.3.1.200@tcp:/csi-fs
+      exaFS: 10.3.1.200@tcp:10.3.2.200@tcp:10.3.3.200@tcp:/csi-fs
       mountPoint: /mnt2
 
   debug: true
@@ -399,7 +402,7 @@ Only one of the Exascaler clusters can have `v1xCompatible: true` since old conf
 
 4. Update version in /opt/exascaler-csi-file-driver/deploy/kubernetes/exascaler-csi-file-driver.yaml
 ```
-          image: exascaler-csi-file-driver:v2.2.3
+          image: exascaler-csi-file-driver:v2.2.4
 ```
 5. Load new image
 ```bash
@@ -409,6 +412,10 @@ docker load -i /opt/exascaler-csi-file-driver/bin/exascaler-csi-file-driver.tar
 ```bash
 kubectl create secret generic exascaler-csi-file-driver-config --from-file=/etc/exascaler-csi-file-driver-v1.1/exascaler-csi-file-driver-config.yaml
 kubectl apply -f /opt/exascaler-csi-file-driver/deploy/kubernetes/exascaler-csi-file-driver.yaml
+```
+7. Verify version
+```bash
+kubectl get deploy/exascaler-csi-controller -o jsonpath="{..image}"
 ```
 
 ## Troubleshooting
