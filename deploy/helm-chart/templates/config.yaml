@@ -6,5 +6,4 @@ metadata:
   namespace: {{ .Release.Namespace }}
 type: "Opaque"
 data:
-  exascaler-csi-file-driver-config.yaml: |
-    {{- .Values.config | toYaml | nindent 4 }}
+  exascaler-csi-file-driver-config.yaml: {{- .Values.config | toYaml | b64enc }}
