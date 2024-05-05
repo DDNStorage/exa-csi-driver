@@ -60,8 +60,8 @@ spec:
         # 1) registers the CSI driver with kubelet
         # 2) adds the drivers custom NodeId to a label on the Kubernetes Node API Object
         - name: driver-registrar
-          image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.0.0
-          imagePullPolicy: IfNotPresent
+          image: {{ .Values.registrar.repository }}:{{ .Values.registrar.tag }}
+          imagePullPolicy: {{ .Values.registrar.pullPolicy }}
           args:
             - --v=3
             - --csi-address=/csi/csi.sock
