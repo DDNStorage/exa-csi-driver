@@ -54,7 +54,7 @@ rules:
     verbs: ['get', 'list']
   # attacher specific
   - apiGroups: ['']
-    resources: ['nodes']
+    resources: ['nodes', 'pods']
     verbs: ['get', 'list', 'watch']
   - apiGroups: ['csi.storage.k8s.io']
     resources: ['csinodeinfos']
