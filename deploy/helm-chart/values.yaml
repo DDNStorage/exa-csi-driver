@@ -13,7 +13,7 @@ image:
 
 registrar:
   repository: registry.k8s.io/sig-storage/csi-node-driver-registrar
-  tag: v2.0.0 # latest is v2.9.4
+  tag: v2.0.0 # latest is v2.10.1
   pullPolicy: IfNotPresent
 
 provisioner:
@@ -28,7 +28,7 @@ attacher:
 
 resizer:
   repository: registry.k8s.io/sig-storage/csi-resizer
-  tag: v1.4.0 # latest is v1.9.4
+  tag: v1.4.0 # latest is v1.10.1
   pullPolicy: IfNotPresent
 
 resources:
