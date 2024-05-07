@@ -8,27 +8,27 @@ replicaCount: 1
 
 image:
   repository: "quay.io/ddn/exascaler-csi-file-driver"
-  tag: "v2.2.3"
+  tag: v2.2.3
   pullPolicy: Always
 
 registrar:
   repository: registry.k8s.io/sig-storage/csi-node-driver-registrar
-  tag: v2.0.0 # latest is v2.10.1
+  tag: v2.10.1
   pullPolicy: IfNotPresent
 
 provisioner:
   repository: registry.k8s.io/sig-storage/csi-provisioner
-  tag: v3.6.3 # latest is v4.0.1
+  tag: v4.0.1
   pullPolicy: IfNotPresent
 
 attacher:
   repository: registry.k8s.io/sig-storage/csi-attacher
-  tag: v4.4.0 # latest is v4.5.1
+  tag: v4.5.1
   pullPolicy: IfNotPresent
 
 resizer:
   repository: registry.k8s.io/sig-storage/csi-resizer
-  tag: v1.4.0 # latest is v1.10.1
+  tag: v1.10.1
   pullPolicy: IfNotPresent
 
 resources:
