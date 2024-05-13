@@ -65,9 +65,17 @@ spec:
           image: {{ .Values.registrar.repository }}:{{ .Values.registrar.tag }}
           imagePullPolicy: {{ .Values.registrar.pullPolicy }}
           args:
-            - --v=3
+            - --v=5
             - --csi-address=/csi/csi.sock
-            - --kubelet-registration-path=/var/lib/kubelet/plugins_registry/exa.csi.ddn.com/csi.sock
+            - --kubelet-registration-path=/var/lib/kubelet/plugins/exa.csi.ddn.com/csi.sock
+          livenessProbe:
+            exec:
+              command:
+              - /csi-node-driver-registrar
+              - --kubelet-registration-path=/var/lib/kubelet/plugins/exa.csi.ddn.com/csi.sock
+              - --mode=kubelet-registration-probe
+            initialDelaySeconds: 30
+            timeoutSeconds: 15
           env:
             - name: KUBE_NODE_NAME
               valueFrom:
@@ -130,7 +138,7 @@ spec:
       volumes:
         - name: socket-dir
           hostPath:
-            path: /var/lib/kubelet/plugins_registry/exa.csi.ddn.com
+            path: /var/lib/kubelet/plugins/exa.csi.ddn.com
             type: DirectoryOrCreate
         - name: registration-dir
           hostPath:

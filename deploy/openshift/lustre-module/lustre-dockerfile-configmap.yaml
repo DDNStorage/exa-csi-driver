@@ -9,7 +9,7 @@ data:
       ARG KERNEL_VERSION
       WORKDIR /build/
       ENV SMDEV_CONTAINER_OFF=1
-      RUN git clone https://github.com/Qeas/rpms.git # change this to your repo with matching rpms
+      RUN git clone -b ${KERNEL_VERSION} https://github.com/Qeas/rpms.git # change this to your repo with matching rpms
       RUN yum -y install rpms/*.rpm
       RUN mkdir -p /opt/lib && \
           cp -r /lib/modules /opt/lib/modules

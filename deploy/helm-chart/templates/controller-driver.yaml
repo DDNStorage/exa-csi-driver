@@ -187,7 +187,6 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   # serviceName: exascaler-csi-controller-service
-  replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
       app: exascaler-csi-controller # has to match .spec.template.metadata.labels
