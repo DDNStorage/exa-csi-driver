@@ -61,6 +61,7 @@ spec:
         # 1) registers the CSI driver with kubelet
         # 2) adds the drivers custom NodeId to a label on the Kubernetes Node API Object
         - name: driver-registrar
+          resources: {{ .Values.resources | default .Values.registrar.resources | toYaml | nindent 12 }}
           image: {{ .Values.registrar.repository }}:{{ .Values.registrar.tag }}
           imagePullPolicy: {{ .Values.registrar.pullPolicy }}
           args:
@@ -78,13 +79,7 @@ spec:
             - name: registration-dir
               mountPath: /registration
         - name: driver
-          resources:
-            limits:
-              memory: {{ .Values.resources.limits.memory }}
-              cpu: {{ .Values.resources.limits.cpu }}
-            requests:
-              memory: {{ .Values.resources.requests.memory }}
-              cpu: {{ .Values.resources.requests.cpu }}
+          resources: {{ .Values.resources | default .Values.image.resources | toYaml | nindent 12 }}
           securityContext:
             privileged: true
             capabilities:

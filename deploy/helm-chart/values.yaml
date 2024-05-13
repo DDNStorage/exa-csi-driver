@@ -10,27 +10,33 @@ image:
   repository: "quay.io/ddn/exascaler-csi-file-driver"
   tag: v2.2.3
   pullPolicy: Always
+  resources:
 
 registrar:
   repository: registry.k8s.io/sig-storage/csi-node-driver-registrar
   tag: v2.10.1
   pullPolicy: IfNotPresent
+  resources:
 
 provisioner:
   repository: registry.k8s.io/sig-storage/csi-provisioner
   tag: v4.0.1
   pullPolicy: IfNotPresent
+  resources:
 
 attacher:
   repository: registry.k8s.io/sig-storage/csi-attacher
   tag: v4.5.1
   pullPolicy: IfNotPresent
+  resources:
 
 resizer:
   repository: registry.k8s.io/sig-storage/csi-resizer
   tag: v1.10.1
   pullPolicy: IfNotPresent
+  resources:
 
+# default resources
 resources:
   limits:
     cpu: 100m

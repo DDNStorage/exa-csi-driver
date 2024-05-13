@@ -202,6 +202,7 @@ spec:
         # csi-provisioner: sidecar container that watches Kubernetes PersistentVolumeClaim objects
         # and triggers CreateVolume/DeleteVolume against a CSI endpoint
         - name: csi-provisioner
+          resources: {{ .Values.resources | default .Values.provisioner.resources | toYaml | nindent 12 }}
           image: {{ .Values.provisioner.repository }}:{{ .Values.provisioner.tag }}
           imagePullPolicy: {{ .Values.provisioner.pullPolicy }}
           args:
@@ -214,6 +215,7 @@ spec:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy
         - name: csi-attacher
+          resources: {{ .Values.resources | default .Values.attacher.resources | toYaml | nindent 12 }}
           image: {{ .Values.attacher.repository }}:{{ .Values.attacher.tag }}
           imagePullPolicy: {{ .Values.attacher.pullPolicy }}
           args:
@@ -227,6 +229,7 @@ spec:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
         - name: csi-resizer
+          resources: {{ .Values.resources | default .Values.resizer.resources | toYaml | nindent 12 }}
           image: {{ .Values.resizer.repository }}:{{ .Values.resizer.tag }}
           imagePullPolicy: {{ .Values.resizer.pullPolicy }}
           args:
@@ -238,13 +241,7 @@ spec:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
         - name: driver
-          resources:
-            limits:
-              memory: {{ .Values.resources.limits.memory }}
-              cpu: {{ .Values.resources.limits.cpu }}
-            requests:
-              memory: {{ .Values.resources.requests.memory }}
-              cpu: {{ .Values.resources.requests.cpu }}
+          resources: {{ .Values.resources | default .Values.image.resources | toYaml | nindent 12 }}
           securityContext:
             privileged: true
             capabilities:
