@@ -54,6 +54,7 @@ spec:
         app: exascaler-csi-node
     spec:
       serviceAccount: exascaler-csi-node-service-account
+      priorityClassName: {{ .Values.priorityClassName }}
       hostNetwork: true
       containers:
         # driver-registrar: sidecar container that:

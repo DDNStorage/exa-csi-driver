@@ -39,6 +39,8 @@ resources:
     cpu: 100m
     memory: 128Mi
 
+priorityClassName: system-cluster-critical
+
 secretName: exascaler-csi-file-driver-config
 
 # exascaler driver specific config

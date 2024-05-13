@@ -197,6 +197,7 @@ spec:
         app: exascaler-csi-controller
     spec:
       serviceAccount: exascaler-csi-controller-service-account
+      priorityClassName: {{ .Values.priorityClassName }}
       containers:
         # csi-provisioner: sidecar container that watches Kubernetes PersistentVolumeClaim objects
         # and triggers CreateVolume/DeleteVolume against a CSI endpoint
