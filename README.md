@@ -135,11 +135,11 @@ oc apply -n openshift-kmm -f deploy/openshift/exascaler-csi-file-driver.yaml
 ```bash
 oc delete -n openshift-kmm secret exascaler-csi-file-driver-config
 oc delete -n openshift-kmm -f deploy/openshift/exascaler-csi-file-driver.yaml
-oc delete -n openshift-kmm -f deploy/openshift/lustre-module/lustre-dockerfile-configmap.yaml
-oc delete -n openshift-kmm -f deploy/openshift/lustre-module/lnet-mod.yaml
-oc delete -n openshift-kmm -f deploy/openshift/lustre-module/ko2iblnd-mod.yaml
-oc delete -n openshift-kmm -f deploy/openshift/lustre-module/lnet-configuration-ds.yaml
 oc delete -n openshift-kmm -f deploy/openshift/lustre-module/lustre-mod.yaml
+oc delete -n openshift-kmm -f deploy/openshift/lustre-module/lnet-configuration-ds.yaml
+oc delete -n openshift-kmm -f deploy/openshift/lustre-module/ko2iblnd-mod.yaml
+oc delete -n openshift-kmm -f deploy/openshift/lustre-module/lnet-mod.yaml
+oc delete -n openshift-kmm -f deploy/openshift/lustre-module/lustre-dockerfile-configmap.yaml
 oc get images | grep lustre-client-moduleloader | awk '{print $1}' | xargs oc delete image
 ```
 
