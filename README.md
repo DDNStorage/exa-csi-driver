@@ -26,7 +26,6 @@ Releases can be found here - https://github.com/DDNStorage/exa-csi-driver/releas
 |Openshift Version| CSI driver Version| EXA Version|
 |---|---|---|
 |v4.13| >=v2.2.3|v6.3.0|
-|v4.14| >=v2.2.4|v6.3.0|
 |v4.15| >=v2.2.4|v6.3.0|
 
 ## Requirements
@@ -174,19 +173,19 @@ Edit `/etc/exascaler-csi-file-driver-v1.0/exascaler-csi-file-driver-config.yaml`
    exascaler_map:
      exa1:
        mountPoint: /exaFS                                          # mountpoint on the host where the exaFS will be mounted
-       exaFS: 192.168.88.114@tcp2:192.168.98.114@tcp2:/testfs                            # default path to exa filesystem
+       exaFS: 192.168.88.114@tcp2:192.168.98.114@tcp2:/testfs                            # default path to exa filesystem where the PVCs will be stored
        managementIp: 10.204.86.114@tcp                           # network for management operations, such as create/delete volume
        zone: zone-1
 
      exa2:
        mountPoint: /exaFS-zone-2                                          # mountpoint on the host where the exaFS will be mounted
-       exaFS: 192.168.78.112@tcp2:/testfs/zone-2                            # default path to exa filesystem
+       exaFS: 192.168.78.112@tcp2:/testfs/zone-2                            # default path to exa filesystem where the PVCs will be stored
        managementIp: 10.204.86.114@tcp                           # network for management operations, such as create/delete volume
        zone: zone-2
 
      exa3:
        mountPoint: /exaFS-zone-3                                          # mountpoint on the host where the exaFS will be mounted
-       exaFS: 192.168.98.113@tcp2:192.168.88.113@tcp2:/testfs/zone-3                            # default path to exa filesystem
+       exaFS: 192.168.98.113@tcp2:192.168.88.113@tcp2:/testfs/zone-3                            # default path to exa filesystem where the PVCs will be stored
        managementIp: 10.204.86.114@tcp                           # network for management operations, such as create/delete volume
        zone: zone-3
 
@@ -420,9 +419,39 @@ kubectl get deploy/exascaler-csi-controller -o jsonpath="{..image}"
 ```
 
 ## Troubleshooting
-Logs can be found in /var/log/containers directory.
-To collect all driver related logs, you can use the following command
+### Driver logs
+To collect all driver related logs, you can use the `kubectl logs` command.
+All in on command:
+```bash
+mkdir exa-csi-logs
+for name in $(kubectl get pod -owide | grep exascaler | awk '{print $1}'); do kubectl logs $name --all-containers > exa-csi-logs/$name; done
 ```
-mkdir -p /tmp/exascaler-csi-file-driver-logs/
-cp /var/log/containers/exascaler-csi-* /tmp/exascaler-csi-file-driver-logs/
+
+To get logs from all containers of a single pod 
+```bash
+kubectl logs <pod_name> --all-containers
+```
+
+Logs from a single container of a pod
+```bash
+kubectl logs <pod_name> -c driver
+```
+
+#### Driver secret
+```bash
+kubectl get secret exascaler-csi-file-driver-config -o json | jq '.data | map_values(@base64d)' > exa-csi-logs/exascaler-csi-file-driver-config
+```
+
+#### PV/PVC/Pod data
+```bash
+kubectl get pvc > exa-csi-logs/pvcs
+kubectl get pv > exa-csi-logs/pvs
+kubectl get pod > exa-csi-logs/pods
+```
+
+#### Extended info about a PV/PVC/Pod:
+```bash
+kubectl describe pvc <pvc_name> > exa-csi-logs/<pvc_name>
+kubectl describe pv <pv_name> > exa-csi-logs/<pv_name>
+kubectl describe pod <pod_name> > exa-csi-logs/<pod_name>
 ```
