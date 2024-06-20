@@ -22,8 +22,8 @@ Releases can be found here - https://github.com/DDNStorage/exa-csi-driver/releas
 |ReadWriteMany| >=1.0.0 |
 |ReadWriteOncePod| >=2.2.3 |
 
-## Openshift Certification
-|Openshift Version| CSI driver Version| EXA Version|
+## OpenShift Certification
+|OpenShift Version| CSI driver Version| EXA Version|
 |---|---|---|
 |v4.13| >=v2.2.3|v6.3.0|
 |v4.15| >=v2.2.4|v6.3.0|
@@ -57,11 +57,11 @@ or
 rpm -Uvh exa-csi-driver-1.0-1.el7.x86_64.rpm
 ```
 
-## Openshift
+## OpenShift
     Make sure that `openshift: true` in `deploy/openshift/exascaler-csi-file-driver-config.yaml`.
 
 ### Building lustre rpms
-You will need a vm with the kernel version matching that of the Openshift nodes. To check on nodes:
+You will need a vm with the kernel version matching that of the OpenShift nodes. To check on nodes:
 ```bash
 oc get nodes
 oc debug node/c1-pk6k4-worker-0-2j6w8
@@ -98,9 +98,9 @@ Upload the rpms to any repository available from the cluster and change deploy/o
   RUN yum -y install rpms/*.rpm
   ```
 
-### Loading lustre modules in Openshift
+### Loading lustre modules in OpenShift
 
-Before loading the lustre modules, make sure to install Openshift Kernel Module Management (KMM) via Openshift console.
+Before loading the lustre modules, make sure to install OpenShift Kernel Module Management (KMM) via OpenShift console.
 
 ```bash
 oc create -n openshift-kmm -f deploy/openshift/lustre-module/lustre-dockerfile-configmap.yaml
