@@ -2,15 +2,40 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-namespace: "default"  # replace with non-default namespace name if needed
 volumeNamePrefix: "pvc-exa"
 
 image:
   repository: "quay.io/ddn/exascaler-csi-file-driver"
+  tag: v2.2.5
   pullPolicy: "Always"
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "v2.2.4"
+  resources:
 
+registrar:
+  repository: registry.k8s.io/sig-storage/csi-node-driver-registrar
+  tag: v2.10.1
+  pullPolicy: IfNotPresent
+  resources:
+
+provisioner:
+  repository: registry.k8s.io/sig-storage/csi-provisioner
+  tag: v4.0.1
+  pullPolicy: IfNotPresent
+  resources:
+
+attacher:
+  repository: registry.k8s.io/sig-storage/csi-attacher
+  tag: v4.5.1
+  pullPolicy: IfNotPresent
+  resources:
+
+resizer:
+  repository: registry.k8s.io/sig-storage/csi-resizer
+  tag: v1.10.1
+  pullPolicy: IfNotPresent
+  resources:
+
+# default resources
 resources:
   limits:
     cpu: 100m
@@ -19,4 +44,24 @@ resources:
     cpu: 100m
     memory: 128Mi
 
+priorityClassName: system-cluster-critical
+
 secretName: exascaler-csi-file-driver-config
+
+# exascaler driver specific config
+config:
+  exascaler_map:
+    exa1:
+      mountPoint: /exaFS                                          # mountpoint on the host where the exaFS will be mounted
+      exaFS: 10.204.86.114@tcp:/testfs                            # default path to exa filesystem
+      zone: zone-1
+  #   exa2:
+  #     mountPoint: /exaFS-zone-2                                          # mountpoint on the host where the exaFS will be mounted
+  #     exaFS: 10.204.86.114@tcp:/testfs/zone-2                            # default path to exa filesystem
+  #     zone: zone-2
+  #   exa3:
+  #     mountPoint: /exaFS-zone-3                                          # mountpoint on the host where the exaFS will be mounted
+  #     exaFS: 10.204.86.114@tcp:/testfs/zone-3                            # default path to exa filesystem
+  #     zone: zone-3
+  debug: true
+  openshift: false

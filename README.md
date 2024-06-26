@@ -26,6 +26,7 @@ Releases can be found here - https://github.com/DDNStorage/exa-csi-driver/releas
 |Openshift Version| CSI driver Version| EXA Version|
 |---|---|---|
 |v4.13| >=v2.2.3|v6.3.0|
+|v4.14| >=v2.2.4|v6.3.0|
 |v4.15| >=v2.2.4|v6.3.0|
 
 ## Requirements
@@ -58,7 +59,13 @@ rpm -Uvh exa-csi-driver-1.0-1.el7.x86_64.rpm
 ```
 
 ## Openshift
-    Make sure that `openshift: true` in `deploy/openshift/exascaler-csi-file-driver-config.yaml`.
+### Prerequisites
+Internal OpenShift image registry needs to be patched to allow building lustre modules with KMM.
+```bash
+oc patch configs.imageregistry.operator.openshift.io cluster --type merge --patch '{"spec":{"managementState":"Managed"}}'
+oc patch configs.imageregistry.operator.openshift.io cluster --type merge --patch '{"spec":{"storage":{"emptyDir":{}}}}'
+oc patch configs.imageregistry.operator.openshift.io/cluster --type merge -p '{"spec":{"defaultRoute":true}}'
+```
 
 ### Building lustre rpms
 You will need a vm with the kernel version matching that of the Openshift nodes. To check on nodes:
@@ -124,6 +131,9 @@ oc apply -n openshift-kmm -f deploy/openshift/lustre-module/lustre-mod.yaml
 ```
 
 ### Installing the driver
+
+Make sure that `openshift: true` in `deploy/openshift/exascaler-csi-file-driver-config.yaml`.
+Create a secret from the config file and apply the driver yaml.
 
 ```bash
 oc create -n openshift-kmm secret generic exascaler-csi-file-driver-config --from-file=deploy/openshift/exascaler-csi-file-driver-config.yaml

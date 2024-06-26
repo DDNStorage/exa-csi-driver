@@ -11,7 +11,6 @@ spec:
   podInfoOnMount: false
 ---
 
-
 # ---------------------------------
 # Exascaler CSI Controller Server
 # ---------------------------------
@@ -23,7 +22,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: exascaler-csi-controller-service-account
-  namespace: {{ .Values.namespace }}
+  namespace: {{ .Release.Namespace }}
 ---
 
 kind: ClusterRole
@@ -91,7 +90,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: exascaler-csi-controller-service-account
-    namespace: {{ .Values.namespace }}
+    namespace: {{ .Release.Namespace }}
 roleRef:
   kind: ClusterRole
   name: exascaler-csi-controller-cluster-role
@@ -133,7 +132,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: exascaler-csi-controller-service-account
-    namespace: {{ .Values.namespace }}
+    namespace: {{ .Release.Namespace }}
 roleRef:
   kind: ClusterRole
   name: csi-resizer-role
@@ -143,7 +142,7 @@ roleRef:
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  namespace: {{ .Values.namespace }}
+  namespace: {{ .Release.Namespace }}
   name: external-resizer-cfg
 rules:
 - apiGroups: ["coordination.k8s.io"]
@@ -155,11 +154,11 @@ kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: csi-resizer-role-cfg
-  namespace: {{ .Values.namespace }}
+  namespace: {{ .Release.Namespace }}
 subjects:
   - kind: ServiceAccount
     name: exascaler-csi-controller-service-account
-    namespace: {{ .Values.namespace }}
+    namespace: {{ .Release.Namespace }}
 roleRef:
   kind: Role
   name: external-resizer-cfg
@@ -184,6 +183,7 @@ kind: Deployment
 apiVersion: apps/v1
 metadata:
   name: exascaler-csi-controller
+  namespace: {{ .Release.Namespace }}
 spec:
   # serviceName: exascaler-csi-controller-service
   selector:
@@ -195,24 +195,38 @@ spec:
         app: exascaler-csi-controller
     spec:
       serviceAccount: exascaler-csi-controller-service-account
+      priorityClassName: {{ .Values.priorityClassName }}
       containers:
         # csi-provisioner: sidecar container that watches Kubernetes PersistentVolumeClaim objects
         # and triggers CreateVolume/DeleteVolume against a CSI endpoint
         - name: csi-provisioner
-          image: k8s.gcr.io/sig-storage/csi-provisioner:v3.0.0
-          imagePullPolicy: IfNotPresent
+          resources: {{ .Values.resources | default .Values.provisioner.resources | toYaml | nindent 12 }}
+          image: {{ .Values.provisioner.repository }}:{{ .Values.provisioner.tag }}
+          imagePullPolicy: {{ .Values.provisioner.pullPolicy }}
           args:
             - --csi-address=/var/lib/csi/sockets/pluginproxy/csi.sock
             - --volume-name-prefix={{ .Values.volumeNamePrefix }}
             - --strict-topology
             - --immediate-topology=false
             - --feature-gates=Topology=true
+          env:
+            - name: GOMEMLIMIT
+              valueFrom:
+                resourceFieldRef:
+                  divisor: "0"
+                  resource: limits.memory
+            - name: GOMAXPROCS
+              valueFrom:
+                resourceFieldRef:
+                  divisor: "0"
+                  resource: limits.cpu
           volumeMounts:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy
         - name: csi-attacher
-          image: k8s.gcr.io/sig-storage/csi-attacher:v3.5.0
-          imagePullPolicy: IfNotPresent
+          resources: {{ .Values.resources | default .Values.attacher.resources | toYaml | nindent 12 }}
+          image: {{ .Values.attacher.repository }}:{{ .Values.attacher.tag }}
+          imagePullPolicy: {{ .Values.attacher.pullPolicy }}
           args:
             - --csi-address=$(ADDRESS)
             - --v=2
@@ -220,28 +234,43 @@ spec:
           env:
             - name: ADDRESS
               value: /var/lib/csi/sockets/pluginproxy/csi.sock
+            - name: GOMEMLIMIT
+              valueFrom:
+                resourceFieldRef:
+                  divisor: "0"
+                  resource: limits.memory
+            - name: GOMAXPROCS
+              valueFrom:
+                resourceFieldRef:
+                  divisor: "0"
+                  resource: limits.cpu
           volumeMounts:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
         - name: csi-resizer
-          image: k8s.gcr.io/sig-storage/csi-resizer:v1.4.0
+          resources: {{ .Values.resources | default .Values.resizer.resources | toYaml | nindent 12 }}
+          image: {{ .Values.resizer.repository }}:{{ .Values.resizer.tag }}
+          imagePullPolicy: {{ .Values.resizer.pullPolicy }}
           args:
             - "--csi-address=$(ADDRESS)"
           env:
             - name: ADDRESS
               value: /var/lib/csi/sockets/pluginproxy/csi.sock
-          imagePullPolicy: "IfNotPresent"
+            - name: GOMEMLIMIT
+              valueFrom:
+                resourceFieldRef:
+                  divisor: "0"
+                  resource: limits.memory
+            - name: GOMAXPROCS
+              valueFrom:
+                resourceFieldRef:
+                  divisor: "0"
+                  resource: limits.cpu
           volumeMounts:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
         - name: driver
-          resources:
-            limits:
-              memory: {{ .Values.resources.limits.memory }}
-              cpu: {{ .Values.resources.limits.cpu }}
-            requests:
-              memory: {{ .Values.resources.requests.memory }}
-              cpu: {{ .Values.resources.requests.cpu }}
+          resources: {{ .Values.resources | default .Values.image.resources | toYaml | nindent 12 }}
           securityContext:
             privileged: true
             capabilities:
@@ -258,6 +287,16 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: GOMEMLIMIT
+              valueFrom:
+                resourceFieldRef:
+                  divisor: "0"
+                  resource: limits.memory
+            - name: GOMAXPROCS
+              valueFrom:
+                resourceFieldRef:
+                  divisor: "0"
+                  resource: limits.cpu
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
