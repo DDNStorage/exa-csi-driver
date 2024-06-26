@@ -295,7 +295,7 @@ spec:
         volumeMounts:
           - name: socket-dir
             mountPath: /csi/
-      - image: quay.io/ddn/exascaler-openshift-file-driver:v2.2.4
+      - image: quay.io/ddn/exascaler-openshift-file-driver:v2.2.5
         imagePullPolicy: Always
         args:
           - --nodeid=$(KUBE_NODE_NAME)
@@ -387,7 +387,7 @@ spec:
           securityContext:
             privileged: true
             allowPrivilegeEscalation: true
-          image: quay.io/ddn/exascaler-openshift-file-driver:v2.2.4
+          image: quay.io/ddn/exascaler-openshift-file-driver:v2.2.5
           imagePullPolicy: Always
           args:
             - --nodeid=$(KUBE_NODE_NAME)
