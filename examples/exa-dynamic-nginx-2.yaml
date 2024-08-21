@@ -11,9 +11,9 @@ allowVolumeExpansion: true
 parameters:
   projectId: "100001"           # Points to a project id to be used to set volume quota.
   exaMountUid: "1001"           # Uid which will be used to access the volume in pod. Should be synced between EXA server and clients.
+  exaMountGid: "1001"           # Gid which will be used to access the volume in pod. Should be synced between EXA server and clients.
   bindMount: "false"
-  # exaFS: "10.204.86.114@tcp:/testfs"   # Overrides exaFS value from config. Use this to support multiple EXA filesystems.
-  # mountPoint: "/sc-mnt"
+  volumeDirPermissions: "1750"
 ---
 
 # ------------------------------------------------
@@ -44,6 +44,8 @@ metadata:
 spec:
   securityContext:
     runAsUser: 1001
+    # runAsGroup: 1001
+    # fsGroup: 1001
   containers:
     - image: nginxinc/nginx-unprivileged
       imagePullPolicy: IfNotPresent
@@ -55,6 +57,30 @@ spec:
           protocol: TCP
       volumeMounts:
         - mountPath: /data
+          name: exascaler-csi-file-driver-data
+    - image: nginxinc/nginx-unprivileged
+      imagePullPolicy: IfNotPresent
+      name: nginx-sub1
+      command: [ "/bin/bash", "-c", "--" ]
+      args: [ "while true; do echo $(date) > /data/timefile; sleep 5; sync; done;" ]
+      ports:
+        - containerPort: 81
+          protocol: TCP
+      volumeMounts:
+        - mountPath: /data
+          subPath: sub1
+          name: exascaler-csi-file-driver-data
+    - image: nginxinc/nginx-unprivileged
+      imagePullPolicy: IfNotPresent
+      name: nginx-sub2
+      command: [ "/bin/bash", "-c", "--" ]
+      args: [ "while true; do echo $(date) > /data/timefile; sleep 5; sync; done;" ]
+      ports:
+        - containerPort: 82
+          protocol: TCP
+      volumeMounts:
+        - mountPath: /data
+          subPath: sub2
           name: exascaler-csi-file-driver-data
   volumes:
     - name: exascaler-csi-file-driver-data

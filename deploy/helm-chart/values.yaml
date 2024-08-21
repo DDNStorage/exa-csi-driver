@@ -6,7 +6,7 @@ volumeNamePrefix: "pvc-exa"
 
 image:
   repository: "quay.io/ddn/exascaler-csi-file-driver"
-  tag: v2.2.5
+  tag: v2.2.6
   pullPolicy: "Always"
   # Overrides the image tag whose default is the chart appVersion.
   resources:
@@ -35,7 +35,13 @@ resizer:
   pullPolicy: IfNotPresent
   resources:
 
-# default resources
+csi_snapshotter:
+  repository: registry.k8s.io/sig-storage/csi-snapshotter
+  tag: v5.0.1
+  pullPolicy: IfNotPresent
+  timeout: 120m
+  resources:
+
 resources:
   limits:
     cpu: 100m
@@ -53,7 +59,7 @@ config:
   exascaler_map:
     exa1:
       mountPoint: /exaFS                                          # mountpoint on the host where the exaFS will be mounted
-      exaFS: 10.204.86.114@tcp:/testfs                            # default path to exa filesystem
+      exaFS: 10.204.86.217@tcp:/testfs                            # default path to exa filesystem
       zone: zone-1
   #   exa2:
   #     mountPoint: /exaFS-zone-2                                          # mountpoint on the host where the exaFS will be mounted

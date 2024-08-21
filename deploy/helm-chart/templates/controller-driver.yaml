@@ -67,10 +67,16 @@ rules:
     verbs: ['get', 'list', 'watch']
   - apiGroups: ['snapshot.storage.k8s.io']
     resources: ['volumesnapshotcontents']
-    verbs: ['create', 'get', 'list', 'watch', 'update', 'delete']
+    verbs: ['create', 'get', 'list', 'watch', 'update', 'delete', 'patch']
   - apiGroups: ['snapshot.storage.k8s.io']
     resources: ['volumesnapshots']
     verbs: ['get', 'list', 'watch', 'update']
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshots/status"]
+    verbs: ["update"]
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshotcontents/status"]
+    verbs: ["update"]
   - apiGroups: ['apiextensions.k8s.io']
     resources: ['customresourcedefinitions']
     verbs: ['create', 'list', 'watch', 'delete']
@@ -247,6 +253,28 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
+        - name: csi-snapshotter
+          resources: {{ .Values.resources | default .Values.csi_snapshotter.resources | toYaml | nindent 12 }}
+          image: {{ .Values.csi_snapshotter.repository }}:{{ .Values.csi_snapshotter.tag }}
+          imagePullPolicy: {{ .Values.csi_snapshotter.pullPolicy }}
+          args:
+            - -v=3
+            - --csi-address=/var/lib/csi/sockets/pluginproxy/csi.sock
+            - --timeout={{ .Values.csi_snapshotter.timeout }}
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/csi/sockets/pluginproxy
+          env:
+            - name: GOMEMLIMIT
+              valueFrom:
+                resourceFieldRef:
+                  divisor: "0"
+                  resource: limits.memory
+            - name: GOMAXPROCS
+              valueFrom:
+                resourceFieldRef:
+                  divisor: "0"
+                  resource: limits.cpu
         - name: csi-resizer
           resources: {{ .Values.resources | default .Values.resizer.resources | toYaml | nindent 12 }}
           image: {{ .Values.resizer.repository }}:{{ .Values.resizer.tag }}
