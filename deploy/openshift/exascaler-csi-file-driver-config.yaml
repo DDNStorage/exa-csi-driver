@@ -8,18 +8,19 @@ exascaler_map:
   exa1:
     bindMount: false
     mountPoint: /exaFS                          # mountpoint on the host where the exaFS will be mounted
-    exaFS: 10.204.86.114@tcp:/testfs            # default path to exa filesystem
+    exaFS: 10.204.86.217@tcp:/testfs            # default path to exa filesystem
     zone: zone-1
     v1xCompatible: true                         # Optional. Can only be true for one of the Exa clusters  
+    volumeDirPermissions: 0777                  # Optional. Defines file permissions for mounted volumes.
 
   exa2:
     mountPoint: /exaFS-zone-2                   # mountpoint on the host where the exaFS will be mounted
-    exaFS: 10.204.86.114@tcp:/testfs/zone-2     # default path to exa filesystem
+    exaFS: 10.204.86.217@tcp:/testfs/zone-2     # default path to exa filesystem
     zone: zone-2
 
   exa3:
     mountPoint: /exaFS-zone-3                   # mountpoint on the host where the exaFS will be mounted
-    exaFS: 10.204.86.114@tcp:/testfs/zone-3     # default path to exa filesystem
+    exaFS: 10.204.86.217@tcp:/testfs/zone-3     # default path to exa filesystem
     zone: zone-3
 
 debug: true                                     # more logs

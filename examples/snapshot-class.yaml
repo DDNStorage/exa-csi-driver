@@ -1,0 +1,16 @@
+# Create a new snapshot class
+
+# $ kubectl apply -f examples/snapshot-class.yaml
+#
+
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: exascaler-csi-snapshot-class
+driver: exa.csi.ddn.com
+deletionPolicy: Delete
+parameters:
+  snapshotUtility: tar
+  snapshotFolder: csi-snapshots
+  # dtarPath: /opt/ddn/mpifileutils/bin/dtar
+  snapshotMd5Verify: "false"

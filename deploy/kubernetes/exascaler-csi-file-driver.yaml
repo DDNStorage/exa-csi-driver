@@ -14,13 +14,14 @@
 # Exascaler CSI Driver
 # ----------------------
 
-apiVersion: storage.k8s.io/v1 #k8s =>1.14
+apiVersion: storage.k8s.io/v1
 kind: CSIDriver
 metadata:
   name: exa.csi.ddn.com
 spec:
   attachRequired: false
   podInfoOnMount: false
+  fsGroupPolicy: File
 ---
 
 
@@ -55,12 +56,6 @@ rules:
   - apiGroups: ['']
     resources: ['events']
     verbs: ['list', 'watch', 'create', 'update', 'patch']
-  - apiGroups: ['snapshot.storage.k8s.io']
-    resources: ['volumesnapshots']
-    verbs: ['get', 'list']
-  - apiGroups: ['snapshot.storage.k8s.io']
-    resources: ['volumesnapshotcontents']
-    verbs: ['get', 'list']
   # attacher specific
   - apiGroups: ['']
     resources: ['nodes', 'pods']
@@ -71,16 +66,25 @@ rules:
   - apiGroups: ['storage.k8s.io']
     resources: ['volumeattachments']
     verbs: ['get', 'list', 'watch', 'update']
+  - apiGroups: ['storage.k8s.io']
+    resources: ['volumeattachments/status']
+    verbs: ['get', 'list', 'watch', 'update', 'patch']
   # snapshotter specific
   - apiGroups: ['snapshot.storage.k8s.io']
     resources: ['volumesnapshotclasses']
     verbs: ['get', 'list', 'watch']
   - apiGroups: ['snapshot.storage.k8s.io']
     resources: ['volumesnapshotcontents']
-    verbs: ['create', 'get', 'list', 'watch', 'update', 'delete']
+    verbs: ['create', 'get', 'list', 'watch', 'update', 'delete', 'patch']
   - apiGroups: ['snapshot.storage.k8s.io']
     resources: ['volumesnapshots']
     verbs: ['get', 'list', 'watch', 'update']
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshots/status"]
+    verbs: ["update"]
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshotcontents/status"]
+    verbs: ["update"]
   - apiGroups: ['apiextensions.k8s.io']
     resources: ['customresourcedefinitions']
     verbs: ['create', 'list', 'watch', 'delete']
@@ -223,6 +227,7 @@ spec:
             - --strict-topology
             - --immediate-topology=false
             - --feature-gates=Topology=true
+            - --timeout=120m
           volumeMounts:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy
@@ -239,6 +244,16 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
+        - name: csi-snapshotter
+          image: registry.k8s.io/sig-storage/csi-snapshotter:v5.0.1
+          imagePullPolicy: IfNotPresent
+          args:
+            - -v=3
+            - --csi-address=/var/lib/csi/sockets/pluginproxy/csi.sock
+            - --timeout=120m
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/csi/sockets/pluginproxy
         - name: csi-resizer
           image: k8s.gcr.io/sig-storage/csi-resizer:v1.4.0
           args:
@@ -256,7 +271,7 @@ spec:
             capabilities:
               add: ['SYS_ADMIN']
             allowPrivilegeEscalation: true
-          image: quay.io/ddn/exascaler-csi-file-driver:v2.2.5
+          image: quay.io/ddn/exascaler-csi-file-driver:v2.2.6
           imagePullPolicy: Always
           args:
             - --nodeid=$(KUBE_NODE_NAME)
@@ -382,7 +397,7 @@ spec:
             capabilities:
               add: ['SYS_ADMIN']
             allowPrivilegeEscalation: true
-          image: quay.io/ddn/exascaler-csi-file-driver:v2.2.5
+          image: quay.io/ddn/exascaler-csi-file-driver:v2.2.6
           imagePullPolicy: Always
           args:
             - --nodeid=$(KUBE_NODE_NAME)

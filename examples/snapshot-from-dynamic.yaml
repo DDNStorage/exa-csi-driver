@@ -1,0 +1,17 @@
+# Take a new snapshot
+#
+# !!! Make sure to run exa-dynamic-nginx-2.yaml before running this example
+# !!! Make sure to run snapshot-class.yaml before running this example
+#
+# $ kubectl apply -f examples/snapshot-from-dynamic.yaml
+#
+
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: snapshot-test
+spec:
+  volumeSnapshotClassName: exascaler-csi-snapshot-class
+  source:
+    persistentVolumeClaimName: exascaler-csi-file-driver-pvc-2
+    # kind: PersistentVolumeClaim
