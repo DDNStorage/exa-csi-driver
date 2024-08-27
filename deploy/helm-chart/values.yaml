@@ -6,7 +6,7 @@ volumeNamePrefix: "pvc-exa"
 
 image:
   repository: "quay.io/ddn/exascaler-csi-file-driver"
-  tag: v2.2.6
+  tag: "v2.2.6"
   pullPolicy: "Always"
   # Overrides the image tag whose default is the chart appVersion.
   resources:

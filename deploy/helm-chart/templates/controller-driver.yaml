@@ -215,6 +215,7 @@ spec:
             - --strict-topology
             - --immediate-topology=false
             - --feature-gates=Topology=true
+            - --timeout={{ .Values.provisioner.timeout }}
           env:
             - name: GOMEMLIMIT
               valueFrom:

@@ -22,8 +22,8 @@ Releases can be found here - https://github.com/DDNStorage/exa-csi-driver/releas
 |ReadWriteMany| >=1.0.0 |
 |ReadWriteOncePod| >=2.2.3 |
 
-## Openshift Certification
-|Openshift Version| CSI driver Version| EXA Version|
+## OpenShift Certification
+|OpenShift Version| CSI driver Version| EXA Version|
 |---|---|---|
 |v4.13| >=v2.2.3|v6.3.0|
 |v4.14| >=v2.2.4|v6.3.0|
@@ -58,7 +58,7 @@ or
 rpm -Uvh exa-csi-driver-1.0-1.el7.x86_64.rpm
 ```
 
-## Openshift
+## OpenShift
 ### Prerequisites
 Internal OpenShift image registry needs to be patched to allow building lustre modules with KMM.
 ```bash
@@ -68,7 +68,7 @@ oc patch configs.imageregistry.operator.openshift.io/cluster --type merge -p '{"
 ```
 
 ### Building lustre rpms
-You will need a vm with the kernel version matching that of the Openshift nodes. To check on nodes:
+You will need a vm with the kernel version matching that of the OpenShift nodes. To check on nodes:
 ```bash
 oc get nodes
 oc debug node/c1-pk6k4-worker-0-2j6w8
@@ -100,14 +100,15 @@ cd exa-client
 
 This will build the rpms and install the client.
 Upload the rpms to any repository available from the cluster and change deploy/openshift/lustre-module/lustre-dockerfile-configmap.yaml lines 12-13 accordingly.
+Make sure that `kmod-lustre-client-*.rpm`, `lustre-client-*.rpm` and `lustre-client-devel-*.rpm` packages are present.
   ```
   RUN git clone https://github.com/Qeas/rpms.git # change this to your repo with matching rpms
   RUN yum -y install rpms/*.rpm
   ```
 
-### Loading lustre modules in Openshift
+### Loading lustre modules in OpenShift
 
-Before loading the lustre modules, make sure to install Openshift Kernel Module Management (KMM) via Openshift console.
+Before loading the lustre modules, make sure to install OpenShift Kernel Module Management (KMM) via OpenShift console.
 
 ```bash
 oc create -n openshift-kmm -f deploy/openshift/lustre-module/lustre-dockerfile-configmap.yaml
@@ -152,6 +153,42 @@ oc delete -n openshift-kmm -f deploy/openshift/lustre-module/lnet-mod.yaml
 oc delete -n openshift-kmm -f deploy/openshift/lustre-module/lustre-dockerfile-configmap.yaml
 oc get images | grep lustre-client-moduleloader | awk '{print $1}' | xargs oc delete image
 ```
+
+
+### Snapshots
+To use CSI snapshots, the snapshot CRDs along with the csi-snapshotter must be installed.
+```bash
+oc apply -f deploy/openshift/snapshots/
+```
+
+After that the snapshot class for EXA CSI must be created
+Snapshot parameter can be passed through snapshot class parameters as can be seen is `examples/snapshot-class.yaml`
+List of available snapshot parameters:
+
+| Name           | Description                                                       | Example                              |
+|----------------|-------------------------------------------------------------------|--------------------------------------|
+| `snapshotFolder` | [Optional] Folder on ExaScaler filesystem where the snapshots will be created. | `csi-snapshots` |
+| `snapshotUtility` | [Optional] Either `tar` or `dtar`. Default is `tar`| `dtar` |
+| `snapshotMd5Verify` | [Optional] Defines whether the driver should do md5sum check on the snapshot. Ensures that the snapshot is not corrupt but reduces performance. Default is `false` | `true` |
+
+```bash
+oc apply -f examples/snapshot-class.yaml
+```
+
+Now a snapshot can be created, for example
+```bash
+oc apply -f examples/snapshot-from-dynamic.yaml
+```
+
+We can create a volume using the snapshot
+```bash
+oc apply -f examples/nginx-from-snapshot.yaml
+```
+
+Exascaler CSI driver supports 2 snapshot modes: `tar` or `dtar`.
+Default mode is `tar`. Dtar is much faster.
+To enable `dtar` set `snapshotUtility: dtar` in config.
+
 
 ## Kubernetes
 ### Using helm chart
@@ -370,7 +407,7 @@ kubectl apply -f /opt/exascaler-csi-file-driver/examples/nginx-persistent-volume
 kubectl delete -f /opt/exascaler-csi-file-driver/examples/nginx-persistent-volume.yaml
 ```
 
-## Snapshots
+### Snapshots
 To use CSI snapshots, the snapshot CRDs along with the csi-snapshotter must be installed.
 ```bash
 kubectl apply -f deploy/kubernetes/snapshots/

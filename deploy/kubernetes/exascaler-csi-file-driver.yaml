@@ -271,7 +271,7 @@ spec:
             capabilities:
               add: ['SYS_ADMIN']
             allowPrivilegeEscalation: true
-          image: quay.io/ddn/exascaler-csi-file-driver:v2.2.6
+          image: quay.io/ddn/exascaler-csi-file-driver:master
           imagePullPolicy: Always
           args:
             - --nodeid=$(KUBE_NODE_NAME)
@@ -397,7 +397,7 @@ spec:
             capabilities:
               add: ['SYS_ADMIN']
             allowPrivilegeEscalation: true
-          image: quay.io/ddn/exascaler-csi-file-driver:v2.2.6
+          image: quay.io/ddn/exascaler-csi-file-driver:master
           imagePullPolicy: Always
           args:
             - --nodeid=$(KUBE_NODE_NAME)
