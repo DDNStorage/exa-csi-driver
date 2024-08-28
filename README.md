@@ -13,6 +13,7 @@ Releases can be found here - https://github.com/DDNStorage/exa-csi-driver/releas
 |StorageClass Secrets|GA|>= 1.0.0|>=1.0.0|>=1.18|
 |Mount options|GA|>= 1.0.0|>= 1.0.0|>=1.18|
 |Topology|GA|>= 2.0.0|>= 1.0.0|>=1.17|
+|Snapshots|GA|>= 2.2.6|>= 1.0.0|>=1.17|
 
 ## Access Modes support
 |Access mode| Supported in version|
@@ -43,6 +44,8 @@ Releases can be found here - https://github.com/DDNStorage/exa-csi-driver/releas
   ```
 - Mount propagation must be enabled, the Docker daemon for the cluster must allow shared mounts
   ([instructions](https://github.com/kubernetes-csi/docs/blob/735f1ef4adfcb157afce47c64d750b71012c8151/book/src/Setup.md#enabling-mount-propagation))
+
+- MpiFileUtils dtar must be installed on all kubernetes nodes in order to use `dtar` as snapshot utility. Not required if `tar` is used for snapshots (default).
 
 ## Installation
 Clone or untar driver (depending on where you get the driver)
