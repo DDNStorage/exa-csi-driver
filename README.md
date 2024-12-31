@@ -2,18 +2,24 @@
 
 Releases can be found here - https://github.com/DDNStorage/exa-csi-driver/releases
 
+## Compatibility matrix
+|CSI driver version|EXAScaler client version|EXA Scaler server version|
+|--- |---|---|
+|>=v2.3.0|>=2.14.0-ddn182|>=6.3.2|
+
 ## Feature List
-|Feature|Feature Status|CSI Driver Version|CSI Spec Version|Kubernetes Version|
-|--- |--- |--- |--- |--- |
-|Static Provisioning|GA|>= 1.0.0|>= 1.0.0|>=1.18|
-|Dynamic Provisioning|GA|>= 1.0.0|>= 1.0.0|>=1.18|
-|RW mode|GA|>= 1.0.0|>= 1.0.0|>=1.18|
-|RO mode|GA|>= 1.0.0|>= 1.0.0|>=1.18|
-|Expand volume|GA|>= 1.0.0|>= 1.1.0|>=1.18|
-|StorageClass Secrets|GA|>= 1.0.0|>=1.0.0|>=1.18|
-|Mount options|GA|>= 1.0.0|>= 1.0.0|>=1.18|
-|Topology|GA|>= 2.0.0|>= 1.0.0|>=1.17|
-|Snapshots|GA|>= 2.2.6|>= 1.0.0|>=1.17|
+|Feature|Feature Status|CSI Driver Version|CSI Spec Version|Kubernetes Version|Openshift Version|
+|--- |--- |--- |--- |--- |--- |
+|Static Provisioning|GA|>= 1.0.0|>= 1.0.0|>=1.18|>=4.13|
+|Dynamic Provisioning|GA|>= 1.0.0|>= 1.0.0|>=1.18|>=4.13|
+|RW mode|GA|>= 1.0.0|>= 1.0.0|>=1.18|>=4.13|
+|RO mode|GA|>= 1.0.0|>= 1.0.0|>=1.18|>=4.13|
+|Expand volume|GA|>= 1.0.0|>= 1.1.0|>=1.18|>=4.13|
+|StorageClass Secrets|GA|>= 1.0.0|>=1.0.0|>=1.18|>=4.13|
+|Mount options|GA|>= 1.0.0|>= 1.0.0|>=1.18|>=4.13|
+|Topology|GA|>= 2.0.0|>= 1.0.0|>=1.17|>=4.13|
+|Snapshots|GA|>= 2.2.6|>= 1.0.0|>=1.17|>=4.13|
+|Exascaler Hot Nodes|GA|>= 2.3.0|>= 1.0.0|>=1.18| Not supported yet|
 
 ## Access Modes support
 |Access mode| Supported in version|
@@ -26,40 +32,9 @@ Releases can be found here - https://github.com/DDNStorage/exa-csi-driver/releas
 ## OpenShift Certification
 |OpenShift Version| CSI driver Version| EXA Version|
 |---|---|---|
-|v4.13| >=v2.2.3|v6.3.0|
-|v4.14| >=v2.2.4|v6.3.0|
-|v4.15| >=v2.2.4|v6.3.0|
-
-## Requirements
-
-- Kubernetes cluster must allow privileged pods, this flag must be set for the API server and the kubelet
-  ([instructions](https://github.com/kubernetes-csi/docs/blob/735f1ef4adfcb157afce47c64d750b71012c8151/book/src/Setup.md#enable-privileged-pods)):
-  ```
-  --allow-privileged=true
-  ```
-- Required API server and kubelet feature gates for k8s version < 1.16 (skip this step for k8s >= 1.16)
-  ([instructions](https://github.com/kubernetes-csi/docs/blob/735f1ef4adfcb157afce47c64d750b71012c8151/book/src/Setup.md#enabling-features)):
-  ```
-  --feature-gates=ExpandInUsePersistentVolumes=true,ExpandCSIVolumes=true,ExpandPersistentVolumes=true
-  ```
-- Mount propagation must be enabled, the Docker daemon for the cluster must allow shared mounts
-  ([instructions](https://github.com/kubernetes-csi/docs/blob/735f1ef4adfcb157afce47c64d750b71012c8151/book/src/Setup.md#enabling-mount-propagation))
-
-- MpiFileUtils dtar must be installed on all kubernetes nodes in order to use `dtar` as snapshot utility. Not required if `tar` is used for snapshots (default).
-
-## Installation
-Clone or untar driver (depending on where you get the driver)
-```bash
-git clone -b <driver version> https://github.com/DDNStorage/exa-csi-driver.git /opt/exascaler-csi-file-driver
-```
-e.g:-
-```bash
-git clone -b 2.2.4 https://github.com/DDNStorage/exa-csi-driver.git /opt/exascaler-csi-file-driver
-```
-or
-```bash
-rpm -Uvh exa-csi-driver-1.0-1.el7.x86_64.rpm
-```
+|v4.13|>=v2.2.3|>=v6.3.0|
+|v4.14|>=v2.2.4|>=v6.3.0|
+|v4.15|>=v2.2.4|>=v6.3.0|
 
 ## OpenShift
 ### Prerequisites
@@ -194,6 +169,40 @@ To enable `dtar` set `snapshotUtility: dtar` in config.
 
 
 ## Kubernetes
+### Requirements
+
+- Kubernetes cluster must allow privileged pods, this flag must be set for the API server and the kubelet
+  ([instructions](https://github.com/kubernetes-csi/docs/blob/735f1ef4adfcb157afce47c64d750b71012c8151/book/src/Setup.md#enable-privileged-pods)):
+  ```
+  --allow-privileged=true
+  ```
+- Required API server and kubelet feature gates for k8s version < 1.16 (skip this step for k8s >= 1.16)
+  ([instructions](https://github.com/kubernetes-csi/docs/blob/735f1ef4adfcb157afce47c64d750b71012c8151/book/src/Setup.md#enabling-features)):
+  ```
+  --feature-gates=ExpandInUsePersistentVolumes=true,ExpandCSIVolumes=true,ExpandPersistentVolumes=true
+  ```
+- Mount propagation must be enabled, the Docker daemon for the cluster must allow shared mounts
+  ([instructions](https://github.com/kubernetes-csi/docs/blob/735f1ef4adfcb157afce47c64d750b71012c8151/book/src/Setup.md#enabling-mount-propagation))
+
+- MpiFileUtils dtar must be installed on all kubernetes nodes in order to use `dtar` as snapshot utility. Not required if `tar` is used for snapshots (default).
+
+### Prerequisites
+EXAScaler client must be installed and configured on all kubernetes nodes. Please refer to EXAScaler Installation and Administration Guide.
+
+### Installation
+Clone or untar driver (depending on where you get the driver)
+```bash
+git clone -b <driver version> https://github.com/DDNStorage/exa-csi-driver.git /opt/exascaler-csi-file-driver
+```
+e.g:-
+```bash
+git clone -b 2.2.4 https://github.com/DDNStorage/exa-csi-driver.git /opt/exascaler-csi-file-driver
+```
+or
+```bash
+rpm -Uvh exa-csi-driver-1.0-1.el7.x86_64.rpm
+```
+
 ### Using helm chart
 
 Make changes to `deploy/helm-chart/values.yaml` and `deploy/helm-chart/exascaler-csi-file-driver-config.yaml` according to your Kubernetes and EXAScaler clusters environment
@@ -276,7 +285,7 @@ parameters:
   projectId: "100001"      # Points to EXA project id to be used to set volume quota. Automatically generated by the driver if not provided.
   exaMountUid: "1001"      # Uid which will be used to access the volume in pod. Should be synced between EXA server and clients.
   exaMountGid: "1002"      # Gid which will be used to access the volume in pod. Should be synced between EXA server and clients.
-  bindMount: "false"       # Determines, whether volume will bind mounted or as a separate lustre mount.
+  bindMount: "true"       # Determines, whether volume will bind mounted or as a separate lustre mount.
   exaFS: "10.204.86.114@tcp:/testfs"   # Overrides exaFS value from config. Use this to support multiple EXA filesystems.
   mountPoint: /exaFS       # Overrides mountPoint value from config. Use this to support multiple EXA filesystems.
   mountOptions: ro,noflock
@@ -356,25 +365,37 @@ spec:
       #mountOptions: ro, flock # list of options for `mount` command
 ```
 
-CSI Parameters:
+Available CSI Parameters:
 
-| Name           | Description                                                       | Example                              |
-|----------------|-------------------------------------------------------------------|--------------------------------------|
-| `driver`       | [required] installed driver name " exa.csi.ddn.com"        | `exa.csi.ddn.com` |
-| `volumeHandle` | [required] EXAScaler name and path to volume on EXAScaler filesystem | `exa1:/nginx-persistent`               |
-| `exaMountUid`  | Uid which will be used to access the volume from the pod. | `1015` |
-| `exaMountGid`  | Gid which will be used to access the volume from the pod. | `1015` |
-| `projectId`    | Points to EXA project id to be used to set volume quota. Automatically generated by the driver if not provided. | `100001` |
-| `managementIp` | Should be used if there is a separate network configured for management operations, such as create/delete volumes. This network should have access to all Exa filesystems in a isolated zones environment | `192.168.10.20@tcp2` |
-| `bindMount`    | Determines, whether volume will bind mounted or as a separate lustre mount. | `true` |
-| `mountOptions` | Options that will be passed to mount command (-o <opt1,opt2,opt3>)  | `ro,flock` |
-| `minProjectId` | Minimum project ID number for automatic generation. Only used when projectId is not provided. | 10000 |
-| `maxProjectId` | Maximum project ID number for automatic generation. Only used when projectId is not provided. | 4294967295 |
-| `generateProjectIdRetries` | Maximum retry count for generating random project ID. Only used when projectId is not provided. | `5` |
-| `zone`        | Topology zone to control where the volume should be created. Should match topology.exa.csi.ddn.com/zone label on node(s). | `us-west` |
-| `v1xCompatible` | [Optional] Only used when upgrading the driver from v1.x.x to v2.x.x. Provides compatibility for volumes that were created beore the upgrade. Set it to `true` to point to the Exa cluster that was configured before the upgrade | `false` |
-| `tempMountPoint` | [Optional] Used when `exaFS` points to a subdirectory that does not exist on Exascaler and will be automatically created by the driver. This parameter sets the directory where Exascaler filesystem will be temporarily mounted to create the subdirectory. | `/tmp/exafs-mnt` |
-| `volumeDirPermissions` | [Optional] Defines file permissions for mounted volumes. | `0777` |
+|Config|Storage class| Description                                                       | Example                              |
+|--------|------------|------------------------------------------------------------------|--------------------------------------|
+| `exaFS` | `exaFS` | [required] Full path to EXAScaler filesystem | `10.3.3.200@tcp:/csi-fs` |
+| `mountPoint` [required] | - | Mountpoint on Kubernetes host where the exaFS will be mounted | `/exa-csi-mnt` |
+| - | `driver`    [required]  |  Installed driver name " exa.csi.ddn.com"        | `exa.csi.ddn.com` |
+| - | `volumeHandle` | [required for static volumes] EXAScaler name and path to volume on EXAScaler filesystem | `exa1:/nginx-persistent`      |
+| - | `exaMountUid`  | Uid which will be used to access the volume from the pod. | `1015` |
+| - | `exaMountGid`  | Gid which will be used to access the volume from the pod. | `1015` |
+| - | `projectId`    | Points to EXA project id to be used to set volume quota. Automatically generated by the driver if not provided. | `100001` |
+| `managementIp` | `managementIp` | Should be used if there is a separate network configured for management operations, such as create/delete volumes. This network should have access to all Exa filesystems in a isolated zones environment | `192.168.10.20@tcp2` |
+| `bindMount` | `bindMount`    | Determines, whether volume will bind mounted or as a separate lustre mount. Default is `true` | `true` |
+| `defaultMountOptions` | `mountOptions` | Options that will be passed to mount command (-o <opt1,opt2,opt3>)  | `ro,flock` |
+| - | `minProjectId` | Minimum project ID number for automatic generation. Only used when projectId is not provided. | 10000 |
+| - | `maxProjectId` | Maximum project ID number for automatic generation. Only used when projectId is not provided. | 4294967295 |
+| - | `generateProjectIdRetries` | Maximum retry count for generating random project ID. Only used when projectId is not provided. | `5` |
+| `zone` | `zone`        | Topology zone to control where the volume should be created. Should match topology.exa.csi.ddn.com/zone label on node(s). | `us-west` |
+| `v1xCompatible` | - | [Optional] Only used when upgrading the driver from v1.x.x to v2.x.x. Provides compatibility for volumes that were created beore the upgrade. Set it to `true` to point to the Exa cluster that was configured before the upgrade | `false` |
+|`tempMountPoint` | `tempMountPoint` | [Optional] Used when `exaFS` points to a subdirectory that does not exist on Exascaler and will be automatically created by the driver. This parameter sets the directory where Exascaler filesystem will be temporarily mounted to create the subdirectory. | `/tmp/exafs-mnt` |
+| `volumeDirPermissions` | `volumeDirPermissions` | [Optional] Defines file permissions for mounted volumes. | `0777` |
+| `hotNodes` | `hotNodes` | Determines whether `HotNodes` feature should be used. This feature can only be used by the driver when Hot Nodes (PCC) service is disabled and not used manually on the kubernetes workers. | `false` |
+| `pccCache` | `pccCache` | Directory for cached files of the file system. Note that lpcc does not recognize directories with a
+trailing slash (“/” at the end). | `/csi-pcc` |
+| `pccAutocache` | `pccAutocache` | Condition for automatic file attachment (caching) | `projid={500}` |
+| `pccPurgeHighUsage` | `pccPurgeHighUsage` | If the disk usage of cache device is higher than high_usage, start detaching the files. Defaults to 90 (90% disk/inode usage). | `90` |
+| `pccPurgeLowUsage` | `pccPurgeLowUsage` | If the disk usage of cache device is lower than low_usage, stop detaching the files. Defaults to 75 (75% disk/inode usage). | `70` |
+| `pccPurgeScanThreads` | `pccPurgeScanThreads` | Threads to use for scanning cache device in parallel. Defaults to 1. | `1` |
+| `pccPurgeInterval` | `pccPurgeInterval` | Interval for lpcc_purge to check cache device usage, in seconds. Defaults to 30. | `30` |
+| `pccPurgeLogLevel` | `pccPurgeLogLevel` | Log level for lpcc_purge: either “fatal”, “error”, “warn”, “normal”, “info” (default), or “debug”. | `info` |
+| `pccPurgeForceScanInterval` | `pccPurgeForceScanInterval` | Scan PCC backends forcefully after this number of seconds to refresh statistic data. | `30` |
 
 #### _PersistentVolumeClaim_ (pointing to created _PersistentVolume_)
 
