@@ -367,7 +367,8 @@ spec:
       #mountOptions: ro, flock # list of options for `mount` command
 ```
 
-Available CSI Parameters:
+### CSI Parameters
+If a parameter is available for both config and storage class, storage class parameter will override config values
 
 |Config|Storage class| Description                                                       | Example                              |
 |--------|------------|------------------------------------------------------------------|--------------------------------------|
