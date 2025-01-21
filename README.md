@@ -140,7 +140,7 @@ oc apply -f deploy/openshift/snapshots/
 ```
 
 After that the snapshot class for EXA CSI must be created
-Snapshot parameter can be passed through snapshot class parameters as can be seen is `examples/snapshot-class.yaml`
+Snapshot parameters can be passed through snapshot class as can be seen is `examples/snapshot-class.yaml`
 List of available snapshot parameters:
 
 | Name           | Description                                                       | Example                              |
@@ -148,6 +148,8 @@ List of available snapshot parameters:
 | `snapshotFolder` | [Optional] Folder on ExaScaler filesystem where the snapshots will be created. | `csi-snapshots` |
 | `snapshotUtility` | [Optional] Either `tar` or `dtar`. Default is `tar`| `dtar` |
 | `snapshotMd5Verify` | [Optional] Defines whether the driver should do md5sum check on the snapshot. Ensures that the snapshot is not corrupt but reduces performance. Default is `false` | `true` |
+| `exaFS` | Same parameter as in storage class. If the original volume was created using storage class parameter for `exaFS` this MUST match the value of storage class. | `10.3.3.200@tcp:/csi-fs` |
+| `mountPoint` | Same parameter as in storage class. If the original volume was created using storage class parameter for `mountPoint` this MUST match the value of storage class. | `/exa-csi-mnt` |
 
 ```bash
 oc apply -f examples/snapshot-class.yaml
@@ -370,7 +372,7 @@ Available CSI Parameters:
 |Config|Storage class| Description                                                       | Example                              |
 |--------|------------|------------------------------------------------------------------|--------------------------------------|
 | `exaFS` | `exaFS` | [required] Full path to EXAScaler filesystem | `10.3.3.200@tcp:/csi-fs` |
-| `mountPoint` [required] | - | Mountpoint on Kubernetes host where the exaFS will be mounted | `/exa-csi-mnt` |
+| `mountPoint`  |`mountPoint` | [required] Mountpoint on Kubernetes host where the exaFS will be mounted | `/exa-csi-mnt` |
 | - | `driver`    [required]  |  Installed driver name " exa.csi.ddn.com"        | `exa.csi.ddn.com` |
 | - | `volumeHandle` | [required for static volumes] EXAScaler name and path to volume on EXAScaler filesystem | `exa1:/nginx-persistent`      |
 | - | `exaMountUid`  | Uid which will be used to access the volume from the pod. | `1015` |
@@ -438,7 +440,7 @@ kubectl apply -f deploy/kubernetes/snapshots/
 ```
 
 After that the snapshot class for EXA CSI must be created
-Snapshot parameter can be passed through snapshot class parameters as can be seen is `examples/snapshot-class.yaml`
+Snapshot parameters can be passed through snapshot class as can be seen is `examples/snapshot-class.yaml`
 List of available snapshot parameters:
 
 | Name           | Description                                                       | Example                              |
@@ -447,6 +449,8 @@ List of available snapshot parameters:
 | `snapshotUtility` | [Optional] Either `tar` or `dtar`.  `dtar` is faster but requires `dtar` to be installed on all k8s nodes. Default is `tar`| `dtar` |
 | `dtarPath` | [Optional] If `snapshotUtility` is `dtar` points to where the `dtar` utility is installed | `/opt/ddn/mpifileutils/bin/dtar` |
 | `snapshotMd5Verify` | [Optional] Defines whether the driver should do md5sum check on the snapshot. Ensures that the snapshot is not corrupt but reduces performance. Default is `false` | `true` |
+| `exaFS` | Same parameter as in storage class. If the original volume was created using storage class parameter for `exaFS` this MUST match the value of storage class. | `10.3.3.200@tcp:/csi-fs` |
+| `mountPoint` | Same parameter as in storage class. If the original volume was created using storage class parameter for `mountPoint` this MUST match the value of storage class. | `/exa-csi-mnt` |
 
 ```bash
 kubectl apply -f examples/snapshot-class.yaml
