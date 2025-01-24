@@ -1,10 +1,10 @@
-DDN licenses the EXA CSI driver under its license at:  https://www.ddn.com/?wpdmdl=40131
+DDN licenses the EXA CSI driver under its license at:  https://www.ddn.com/resources/legal/ddn-end-user-license-agreement/
 
 The DDN license is subject to 3rd party licenses applicable to modules of the exa-csi-driver as listed below. 
 
  
 
-Here is list of 3rd party modules’ licenses:
+Here is list of 3rd party modulesï¿½ licenses:
 
 |Components |License Link|
 |--- |--- |
