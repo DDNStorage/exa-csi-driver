@@ -6,7 +6,7 @@
 
 exascaler_map:
   exa1:
-    bindMount: false
+    bindMount: true
     mountPoint: /exaFS                          # mountpoint on the host where the exaFS will be mounted
     exaFS: 10.204.86.217@tcp:/testfs            # default path to exa filesystem
     zone: zone-1

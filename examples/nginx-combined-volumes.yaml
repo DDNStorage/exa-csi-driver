@@ -11,7 +11,7 @@ allowVolumeExpansion: true
 parameters:
   projectId: "100001"      # Points to a project id to be used to set volume quota.
   exaMountUid: "1001"      # Uid which will be used to access the volume in pod.
-  bindMount: "false"       # Determines, whether volume will bind mounted or as a separate lustre mount.
+  bindMount: "true"        # Determines, whether volume will bind mounted or as a separate lustre mount.
   mountOptions: ro,noflock
 ---
 
@@ -66,7 +66,7 @@ spec:
     volumeHandle: exa1:/exaFS/nginx-persistent
     volumeAttributes:          # volumeAttributes are the alternative of storageClass params for static (precreated) volumes.
       exaMountUid: "1001"      # Uid which will be used to access the volume from the pod.
-      bindMount: "false"       # Determines, whether volume will bind mounted or as a separate lustre mount.
+      bindMount: "true"       # Determines, whether volume will bind mounted or as a separate lustre mount.
       #mountOptions: ro,flock # list of options for `mount` command
 ---
 
