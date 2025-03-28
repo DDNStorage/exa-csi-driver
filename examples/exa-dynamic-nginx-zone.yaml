@@ -5,15 +5,16 @@
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: exascaler-csi-file-driver-sc-override-config
+  name: exascaler-csi-file-driver-sc-zone
 provisioner: exa.csi.ddn.com
+allowedTopologies:
+- matchLabelExpressions:
+  - key: topology.exa.csi.ddn.com/zone
+    values:
+    - zone-1
 allowVolumeExpansion: true
 parameters:
   exaMountUid: "1001"           # Uid which will be used to access the volume in pod. Should be synced between EXA server and clients.
-  exaMountGid: "1001"           # Gid which will be used to access the volume in pod. Should be synced between EXA server and clients.
-  volumeDirPermissions: "1750"
-  mountPoint: /exa-sc1                          # mountpoint on the host where the exaFS will be mounted
-  exaFS: 10.204.86.217@tcp:/testfs/sc1            # default path to exa filesystem
 ---
 
 # ------------------------------------------------
@@ -23,9 +24,9 @@ parameters:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: exascaler-csi-file-driver-pvc-sc-override-1
+  name: exascaler-csi-file-driver-pvc-zone
 spec:
-  storageClassName: exascaler-csi-file-driver-sc-override-config
+  storageClassName: exascaler-csi-file-driver-sc-zone
   accessModes:
     - ReadWriteMany
   resources:
@@ -40,17 +41,21 @@ spec:
 apiVersion: v1
 kind: Pod
 metadata:
-  name: nginx-dynamic-volume-sc-override-1
+  name: nginx-dynamic-volume-zone
 spec:
+  topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.exa.csi.ddn.com/zone
+    whenUnsatisfiable: DoNotSchedule
+    labelSelector:
+      matchLabels:
+        topology.exa.csi.ddn.com/zone: zone-1
   securityContext:
     runAsUser: 1001
-    runAsGroup: 1001
   containers:
     - image: nginxinc/nginx-unprivileged
       imagePullPolicy: IfNotPresent
       name: nginx
-      command: [ "/bin/bash", "-c", "--" ]
-      args: [ "while true; do echo $(date) > /data/timefile; sleep 5; sync; done;" ]
       ports:
         - containerPort: 80
           protocol: TCP
@@ -60,5 +65,5 @@ spec:
   volumes:
     - name: exascaler-csi-file-driver-data
       persistentVolumeClaim:
-        claimName: exascaler-csi-file-driver-pvc-sc-override-1
+        claimName: exascaler-csi-file-driver-pvc-zone
         readOnly: false

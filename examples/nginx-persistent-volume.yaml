@@ -35,10 +35,8 @@ spec:
     storage: 1Gi
   csi:
     driver: exa.csi.ddn.com
-    volumeHandle: exa1:/nginx-persistent
+    volumeHandle: exa1:10.204.86.113@tcp;/testfs:/mnt:/nginx-persistent # <configName:exaFS(colons replaced with semicolons):mountPoint:volumeName>
     volumeAttributes:         # volumeAttributes are the alternative of storageClass params for static (precreated) volumes.
-      # mountOptions: ro, noflock # list of options for `mount` command
-      bindMount: "true"       # Determines, whether volume will bind mounted or as a separate lustre mount.
       exaMountUid: "1001"           # Uid which will be used to access the volume in pod. Should be synced between EXA server and clients.
 ---
 

@@ -5,9 +5,11 @@
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: exascaler-csi-file-driver-sc
+  name: exascaler-csi-file-driver-sc-exa1
 provisioner: exa.csi.ddn.com
 allowVolumeExpansion: true
+parameters:
+  configName: "exa1"
 ---
 
 # ------------------------------------------------
@@ -17,9 +19,9 @@ allowVolumeExpansion: true
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: exascaler-csi-file-driver-pvc
+  name: exascaler-csi-file-driver-pvc-exa1
 spec:
-  storageClassName: exascaler-csi-file-driver-sc
+  storageClassName: exascaler-csi-file-driver-sc-exa1
   accessModes:
     - ReadWriteMany
   resources:

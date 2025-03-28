@@ -5,24 +5,12 @@
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: exascaler-csi-file-driver-sc-2
+  name: exascaler-csi-file-driver-sc-sub
 provisioner: exa.csi.ddn.com
 allowVolumeExpansion: true
 parameters:
-  # projectId: "100001"           # Points to a project id to be used to set volume quota.
   exaMountUid: "1001"           # Uid which will be used to access the volume in pod. Should be synced between EXA server and clients.
   exaMountGid: "1001"           # Gid which will be used to access the volume in pod. Should be synced between EXA server and clients.
-  bindMount: "true"
-  volumeDirPermissions: "1750"
-  hotNodes: "true"
-  pccCache: "/mnt/csi-1"
-  # pccAutocache: ""
-  # pccPurgeHighUsage: ""
-  # pccPurgeLowUsage: ""
-  # pccPurgeScanThreads: ""
-  # pccPurgeInterval: ""
-  # pccPurgeLogLevel: ""
-  # pccPurgeForceScanInterval: ""
 ---
 
 # ------------------------------------------------
@@ -32,9 +20,9 @@ parameters:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: exascaler-csi-file-driver-pvc-2
+  name: exascaler-csi-file-driver-pvc-sub
 spec:
-  storageClassName: exascaler-csi-file-driver-sc-2
+  storageClassName: exascaler-csi-file-driver-sc-sub
   accessModes:
     - ReadWriteMany
   resources:
@@ -49,12 +37,10 @@ spec:
 apiVersion: v1
 kind: Pod
 metadata:
-  name: nginx-dynamic-volume-2
+  name: nginx-dynamic-volume-sub
 spec:
   securityContext:
     runAsUser: 1001
-    # runAsGroup: 1001
-    # fsGroup: 1001
   containers:
     - image: nginxinc/nginx-unprivileged
       imagePullPolicy: IfNotPresent
@@ -94,5 +80,5 @@ spec:
   volumes:
     - name: exascaler-csi-file-driver-data
       persistentVolumeClaim:
-        claimName: exascaler-csi-file-driver-pvc-2
+        claimName: exascaler-csi-file-driver-pvc-sub
         readOnly: false
