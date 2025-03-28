@@ -5,9 +5,8 @@
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: exascaler-csi-file-driver-sc-2
+  name: exascaler-csi-file-driver-sc-replicaset
 provisioner: exa.csi.ddn.com
-# volumeBindingMode: WaitForFirstConsumer
 allowedTopologies:
 - matchLabelExpressions:
   - key: topology.exa.csi.ddn.com/zone
@@ -15,12 +14,8 @@ allowedTopologies:
     - zone-1
 allowVolumeExpansion: true
 parameters:
-  projectId: "1000730000"          # Points to a project id to be used to set volume quota.
   exaMountUid: "1000730000"           # Uid which will be used to access the volume in pod. Should be synced between EXA server and clients.
-# mountOptions:
-#   - noatime
-#   - noflock
-# ---
+---
 
 # ------------------------------------------------
 # Exaxscaler CSI Driver - Persistent Volume Claim
@@ -31,7 +26,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: exascaler-csi-file-driver-pvc-replicaset
 spec:
-  storageClassName: exascaler-csi-file-driver-sc-2
+  storageClassName: exascaler-csi-file-driver-sc-replicaset
   accessModes:
     - ReadWriteMany
   resources:

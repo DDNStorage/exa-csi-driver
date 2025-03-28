@@ -8,6 +8,8 @@ metadata:
   name: exascaler-csi-file-driver-sc
 provisioner: exa.csi.ddn.com
 allowVolumeExpansion: true
+parameters:
+  bindMount: "true"       # Determines, whether volume will bind mounted or as a separate lustre mount.
 ---
 
 # ------------------------------------------------
@@ -17,7 +19,7 @@ allowVolumeExpansion: true
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: exascaler-csi-file-driver-pvc-2
+  name: exascaler-csi-file-driver-pvc
 spec:
   storageClassName: exascaler-csi-file-driver-sc
   accessModes:

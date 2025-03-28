@@ -14,4 +14,3 @@ spec:
   volumeSnapshotClassName: exascaler-csi-snapshot-class
   source:
     persistentVolumeClaimName: exascaler-csi-file-driver-pvc
-    # kind: PersistentVolumeClaim
