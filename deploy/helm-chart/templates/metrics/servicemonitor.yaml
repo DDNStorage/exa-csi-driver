@@ -1,0 +1,21 @@
+{{- if and .Values.metrics.enabled .Values.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: exa-csi-metrics-exporter
+  namespace: {{ .Values.metrics.serviceMonitor.namespace }}
+  labels:
+    release: {{ .Values.metrics.prometheus.releaseLabel }}
+spec:
+  endpoints:
+  - interval: {{ .Values.metrics.serviceMonitor.interval }}
+    path: /metrics
+    port: http  # Ensure this matches exporter port http 
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - {{ .Values.metrics.exporter.namespace }}
+  selector:
+    matchLabels:
+      app: exa-csi-metrics-exporter
+{{- end }}

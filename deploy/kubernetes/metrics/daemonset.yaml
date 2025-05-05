@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: exa-csi-metrics-exporter
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: exa-csi-metrics-exporter
+  template:
+    metadata:
+      labels:
+        app: exa-csi-metrics-exporter
+    spec:
+      serviceAccountName: node-exporter-sa
+      automountServiceAccountToken: true    # Ensure token is mounted
+      containers:
+      - name: exporter
+        imagePullPolicy: Always
+        image: quay.io/ddn/exa-csi-metrics-exporter:v2.3.4
+        securityContext:
+          privileged: true
+          capabilities:
+            add: ['SYS_ADMIN']
+          allowPrivilegeEscalation: true
+        ports:
+        - containerPort: 9200
+          name: http
+          hostPort: 32666
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: PORT
+          value: "9200"
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        volumeMounts:
+        - name: ca-certificates
+          mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+          readOnly: true
+        - name: host
+          mountPath: /host
+          mountPropagation: Bidirectional
+      volumes:
+      - name: host
+        hostPath:
+          path: /
+          type: Directory
+      - name: ca-certificates
+        projected:
+          sources:
+          - serviceAccountToken:
+              path: token
+              expirationSeconds: 3600
+          - configMap:
+              name: kube-root-ca.crt   # Mount CA cert
+              items:
+              - key: ca.crt
+                path: ca.crt

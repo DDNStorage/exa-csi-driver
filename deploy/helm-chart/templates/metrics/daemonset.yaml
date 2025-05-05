@@ -1,0 +1,74 @@
+{{- if .Values.metrics.enabled }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: exa-csi-metrics-exporter
+  namespace: {{ .Values.metrics.exporter.namespace }}
+spec:
+  selector:
+    matchLabels:
+      app: exa-csi-metrics-exporter
+  template:
+    metadata:
+      labels:
+        app: exa-csi-metrics-exporter
+    spec:
+      serviceAccountName: node-exporter-sa
+      automountServiceAccountToken: true    # Ensure token is mounted
+      containers:
+      - name: exporter
+        imagePullPolicy: {{ .Values.metrics.exporter.pullPolicy }}
+        image: {{ .Values.metrics.exporter.repository }}:{{ .Values.metrics.exporter.tag }}
+        securityContext:
+          privileged: true
+          capabilities:
+            add: ['SYS_ADMIN']
+          allowPrivilegeEscalation: true
+        ports:
+        - containerPort: {{ .Values.metrics.exporter.containerPort }}
+          name: http
+          hostPort: {{ .Values.metrics.exporter.servicePort }}
+        env:
+        - name: COLLECT_TIMEOUT
+          value: "{{ .Values.metrics.exporter.collectTimeout }}"
+        - name: LOG_LEVEL
+          value: "{{ .Values.metrics.exporter.logLevel }}"
+        - name: PORT
+          value: "{{ .Values.metrics.exporter.containerPort }}"
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        volumeMounts:
+        - name: ca-certificates
+          mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+          readOnly: true
+        - name: host
+          mountPath: /host
+          mountPropagation: Bidirectional
+      volumes:
+      - name: host
+        hostPath:
+          path: /
+          type: Directory
+      - name: ca-certificates
+        projected:
+          sources:
+          - serviceAccountToken:
+              path: token
+              expirationSeconds: 3600
+          - configMap:
+              name: kube-root-ca.crt   # Mount CA cert
+              items:
+              - key: ca.crt
+                path: ca.crt
+
+{{- end }}

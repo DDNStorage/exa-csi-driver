@@ -1,0 +1,36 @@
+{{- if and .Values.metrics.enabled .Values.metrics.serviceMonitor.enabled }}
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: exa-csi-rules
+  namespace: {{ .Values.metrics.serviceMonitor.namespace }}  # Ensure this is the correct namespace where Prometheus is running
+  labels:
+    release: {{ .Values.metrics.prometheus.releaseLabel }}
+spec:
+  groups:
+    - name: exa-storageclass-rules
+      interval: 15s
+      rules:
+        - record: exa_csi_sc_capacity_bytes
+          expr: sum(exa_csi_pvc_capacity_bytes) by (storage_class)
+        - record: exa_csi_sc_used_bytes
+          expr: sum(exa_csi_pvc_used_bytes) by (storage_class)
+        - record: exa_csi_sc_available_bytes
+          expr: sum(exa_csi_pvc_available_bytes) by (storage_class)
+        - record: exa_csi_sc_pvc_count
+          expr: count(exa_csi_pvc_capacity_bytes) by (storage_class)
+
+    - name: exa-namespace-rules
+      interval: 15s
+      rules:
+        - record: exa_csi_namespace_capacity_bytes
+          expr: sum(exa_csi_pvc_capacity_bytes) by (exported_namespace)
+        - record: exa_csi_namespace_used_bytes
+          expr: sum(exa_csi_pvc_used_bytes) by (exported_namespace)
+        - record: exa_csi_namespace_available_bytes
+          expr: sum(exa_csi_pvc_available_bytes) by (exported_namespace)
+        - record: exa_csi_namespace_pvc_count
+          expr: count(exa_csi_pvc_capacity_bytes) by (exported_namespace)
+
+{{- end }}
