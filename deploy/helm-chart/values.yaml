@@ -6,7 +6,7 @@ volumeNamePrefix: "pvc-exa"
 
 image:
   repository: "quay.io/ddn/exascaler-csi-file-driver"
-  tag: v2.3.3
+  tag: v2.3.4
   pullPolicy: "Always"
   # Overrides the image tag whose default is the chart appVersion.
   resources:
@@ -45,11 +45,11 @@ csi_snapshotter:
 
 resources:
   limits:
-    cpu: 100m
-    memory: 128Mi
+    cpu: 8
+    memory: 512Mi
   requests:
-    cpu: 100m
-    memory: 128Mi
+    cpu: 2
+    memory: 256Mi
 
 priorityClassName: system-cluster-critical
 
@@ -72,3 +72,26 @@ config:
   #     zone: zone-3
   debug: true
   openshift: false
+
+# metrics exporter
+metrics:
+  enabled: false
+  exporter:
+    repository: quay.io/ddn/exa-csi-metrics-exporter
+    tag: v2.3.4
+    pullPolicy: Always
+    containerPort: "9200"
+    servicePort: "32666"
+    namespace: default
+    logLevel: info
+    collectTimeout: 30
+  serviceMonitor:
+    enabled: false # set to true if using local prometheus operator
+    interval: 30s
+    namespace: monitoring
+  prometheus:                                                 # prometheus configuration if using prometheus operator
+    releaseLabel: prometheus                                  # release label for prometheus operator                 
+    createClusterRole: false                                  # set to false if using existing ClusterRole
+    createClustrerRoleName: exa-prometheus-cluster-role       # Name of ClusterRole to create, this name will be used to bind cluster role to prometheus service account
+    clusterRoleName: cluster-admin                            # Name of ClusterRole to bind to prometheus service account if createClusterRole is set to false otherwise `createClustrerRoleName` will be used
+    serviceAccountName: prometheus-kube-prometheus-prometheus # Service account name of prometheus

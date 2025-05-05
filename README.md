@@ -173,18 +173,13 @@ To enable `dtar` set `snapshotUtility: dtar` in config.
 ## Kubernetes
 ### Requirements
 
-- Kubernetes cluster must allow privileged pods, this flag must be set for the API server and the kubelet
-  ([instructions](https://github.com/kubernetes-csi/docs/blob/735f1ef4adfcb157afce47c64d750b71012c8151/book/src/Setup.md#enable-privileged-pods)):
-  ```
-  --allow-privileged=true
-  ```
 - Required API server and kubelet feature gates for k8s version < 1.16 (skip this step for k8s >= 1.16)
   ([instructions](https://github.com/kubernetes-csi/docs/blob/735f1ef4adfcb157afce47c64d750b71012c8151/book/src/Setup.md#enabling-features)):
   ```
   --feature-gates=ExpandInUsePersistentVolumes=true,ExpandCSIVolumes=true,ExpandPersistentVolumes=true
   ```
 - Mount propagation must be enabled, the Docker daemon for the cluster must allow shared mounts
-  ([instructions](https://github.com/kubernetes-csi/docs/blob/735f1ef4adfcb157afce47c64d750b71012c8151/book/src/Setup.md#enabling-mount-propagation))
+  ([instructions](https://kubernetes.io/docs/concepts/storage/volumes/#mount-propagation))
 
 - MpiFileUtils dtar must be installed on all kubernetes nodes in order to use `dtar` as snapshot utility. Not required if `tar` is used for snapshots (default).
 
@@ -207,16 +202,148 @@ rpm -Uvh exa-csi-driver-1.0-1.el7.x86_64.rpm
 
 ### Using helm chart
 
-Make changes to `deploy/helm-chart/values.yaml` and `deploy/helm-chart/exascaler-csi-file-driver-config.yaml` according to your Kubernetes and EXAScaler clusters environment
+Pull latest helm chart configuration before installing or upgrading. 
 
-`helm install -n ${namespace} exascaler-csi-file-driver deploy/helm-chart/`
+#### Install
+- Make changes to `deploy/helm-chart/values.yaml` according to your Kubernetes and EXAScaler clusters environment.
+
+- If metrics exporter is required, make changes to `deploy/helm-chart/values.yaml` according to your environment. refer to [metrics exporter configuration](#metrics-exporter-configuration)
+
+- Run `helm install -n ${namespace} exascaler-csi-file-driver deploy/helm-chart/`
 
 #### Uninstall
-`helm uninstall exascaler-csi-file-driver`
+`helm uninstall -n ${namespace} exascaler-csi-file-driver`
 
 #### Upgrade
-1. Make any necessary changes to the chart, for example new driver version: `tag: "v2.2.5"` in `deploy/helm-chart/values.yaml`.
-2. Run `helm upgrade -n ${namespace} exascaler-csi-file-driver deploy/helm-chart/`
+
+- Make any necessary changes to the chart, for example new driver version: `tag: "v2.3.4"` in `deploy/helm-chart/values.yaml`.
+- If metrics exporter is required, make changes to `deploy/helm-chart/values.yaml` according to your environment. refer to [metrics exporter configuration](#metrics-exporter-configuration)
+- Run `helm upgrade -n ${namespace} exascaler-csi-file-driver deploy/helm-chart/`
+
+
+### Metrics exporter configuration.
+```yaml
+metrics:
+  enabled: true      # Enable metrics exporter 
+  exporter:
+    repository: quay.io/ddn/exa-csi-metrics-exporter
+    tag: master # use latest version same as driver version e.g - tag: "2.3.4"
+    pullPolicy: Always
+    containerPort: "9200" # Metrics Exporter port
+    servicePort: "9200" # This port will be used to create service for exporter
+    namespace: default # Namespace where metrics exporter will be deployed
+    logLevel: info     # Log level. Debug is not recommended for production, default is info.
+    collectTimeout: 10 # Metrics refresh timeout in seconds. Default is 10.
+  serviceMonitor:
+    enabled: false # set to true if using prometheus operator
+    interval: 30s
+    namespace: monitoring # Namespace where prometheus operator is deployed
+  prometheus:                                                 
+    releaseLabel: prometheus      # release label for prometheus operator                 
+    createClusterRole: false   # set to false if using existing ClusterRole
+    createClustrerRoleName: exa-prometheus-cluster-role  # Name of ClusterRole to create, this name will be used to bind cluster role to prometheus service account
+    clusterRoleName: cluster-admin  # Name of ClusterRole to bind to prometheus service account if createClusterRole is set to false otherwise `createClustrerRoleName` will be used
+    serviceAccountName: prometheus-kube-prometheus-prometheus # Service account name of prometheus
+
+```
+
+## Prometheus Server Integration
+
+This section describes how to:
+- Add the EXAScaler CSI metrics exporter to Prometheus' scrape configuration.
+- Apply PrometheusRule definitions for metrics aggregation by StorageClass and Namespace.
+
+### 1. Add EXAScaler CSI Metrics Exporter to Prometheus
+
+#### Step 1.1 – Create a Secret with Scrape Config
+
+Get the hostPort number of the EXAScaler CSI metrics exporter:
+```bash
+kubectl get daemonset exa-csi-metrics-exporter -o jsonpath='{.spec.template.spec.containers[*].ports[*].hostPort}{"\n"}'
+
+32666
+```
+
+Create a Kubernetes secret that holds your additional Prometheus scrape configuration:
+```bash
+PORT=32666
+cat <<EOF | envsubst > additional-scrape-configs.yaml
+- job_name: 'exa-csi-metrics-exporter-remote'
+  static_configs:
+    - targets:
+        - 10.20.30.1:$PORT
+        - 10.20.30.2:$PORT
+        - 10.20.30.3:$PORT
+EOF
+kubectl create secret generic additional-scrape-configs \
+  --from-file=additional-scrape-configs.yaml -n monitoring
+```
+Note: Replace the targets value with the actual IP and port of your EXAScaler CSI metrics exporter.
+
+#### Step 1.2 – Patch the Prometheus Custom Resource
+
+Edit the Prometheus CR (custom resource) and add the additionalScrapeConfigs reference:
+```bash
+kubectl edit prometheus prometheus-kube-prometheus-prometheus -n monitoring
+```
+Add the following under spec:
+```yaml
+  additionalScrapeConfigs:
+    name: additional-scrape-configs
+    key: additional-scrape-configs.yaml
+```
+
+#### Step 1.3 – Restart Prometheus
+
+After editing the CR, restart Prometheus so it reloads the configuration:
+```bash
+kubectl delete pod -l app.kubernetes.io/name=prometheus -n monitoring
+```
+
+### 2. Add Prometheus Rules for StorageClass and Namespace Aggregation
+
+Apply a PrometheusRule resource to aggregate PVC metrics by StorageClass and Namespace:
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: exa-csi-rules
+  namespace: monitoring
+  labels:
+    release: prometheus
+spec:
+  groups:
+    - name: exa-storageclass-rules
+      interval: 15s
+      rules:
+        - record: exa_csi_sc_capacity_bytes
+          expr: sum(exa_csi_pvc_capacity_bytes) by (storage_class)
+        - record: exa_csi_sc_used_bytes
+          expr: sum(exa_csi_pvc_used_bytes) by (storage_class)
+        - record: exa_csi_sc_available_bytes
+          expr: sum(exa_csi_pvc_available_bytes) by (storage_class)
+        - record: exa_csi_sc_pvc_count
+          expr: count(exa_csi_pvc_capacity_bytes) by (storage_class)
+
+    - name: exa-namespace-rules
+      interval: 15s
+      rules:
+        - record: exa_csi_namespace_capacity_bytes
+          expr: sum(exa_csi_pvc_capacity_bytes) by (exported_namespace)
+        - record: exa_csi_namespace_used_bytes
+          expr: sum(exa_csi_pvc_used_bytes) by (exported_namespace)
+        - record: exa_csi_namespace_available_bytes
+          expr: sum(exa_csi_pvc_available_bytes) by (exported_namespace)
+        - record: exa_csi_namespace_pvc_count
+          expr: count(exa_csi_pvc_capacity_bytes) by (exported_namespace)
+```
+Apply the rule:
+```bash
+kubectl apply -f exa-csi-rules.yaml
+```
+Ensure that Prometheus is watching the monitoring namespace for PrometheusRule CRDs.
+
+
 
 ### Using docker load and kubectl commands
    ```bash
@@ -321,6 +448,16 @@ kubectl delete -f /opt/exascaler-csi-file-driver/examples/exa-dynamic-nginx.yaml
 The driver can use already existing Exasaler filesystem,
 in this case, _StorageClass_, _PersistentVolume_ and _PersistentVolumeClaim_ should be configured.
 
+Quota can be manually assigned for static volumes. First we need to associate a project with the volume folder
+```bash
+lfs project -p 1000001 -s /mountPoint-csi/nginx-persistent
+```
+
+Then a quota can be set for that project
+```bash
+lfs setquota -p 1000001 -B 2G /mountPoint-csi/
+```
+
 #### _StorageClass_ configuration
 
 ```yaml
@@ -337,24 +474,6 @@ allowedTopologies:
 mountOptions:                         # list of options for `mount -o ...` command
 #  - noatime                         #
 ```
-
-### Topology configuration
-In order to configure CSI driver with kubernetes topology, use the `zone` parameter in driver config or storageClass parameters. Example config file with zones:
-  ```bash
-
-  exascaler_map:
-    exa1:
-      exaFS: 10.3.196.24@tcp:/csi
-      mountPoint: /exaFS
-      zone: us-west
-    exa2:
-      exaFS: 10.3.196.24@tcp:/csi-2
-      mountPoint: /exaFS-zone2
-      zone: us-east
-  ```
-
-This will assign volumes to be created on Exascaler cluster that correspond with the zones requested by allowedTopologies values.
-
 
 #### _PersistentVolume_ configuration
 
@@ -377,6 +496,62 @@ spec:
     volumeAttributes:         # volumeAttributes are the alternative of storageClass params for static (precreated) volumes.
       exaMountUid: "1001"     # Uid which will be used to access the volume in pod.
       #mountOptions: ro, flock # list of options for `mount` command
+      projectId: "1000001"
+```
+
+### Topology configuration
+In order to configure CSI driver with kubernetes topology, use the `zone` parameter in driver config or storageClass parameters. Example config file with zones:
+  ```bash
+
+  exascaler_map:
+    exa1:
+      exaFS: 10.3.196.24@tcp:/csi
+      mountPoint: /exaFS
+      zone: us-west
+    exa2:
+      exaFS: 10.3.196.24@tcp:/csi-2
+      mountPoint: /exaFS-zone2
+      zone: us-east
+  ```
+
+This will assign volumes to be created on Exascaler cluster that correspond with the zones requested by allowedTopologies values.
+
+For topology-aware scheduling:
+
+Each node must have the `topology.exa.csi.ddn.com/zone` label with the zone configuration.
+
+Label node with topology zone:
+```bash
+kubectl label node <node-name> topology.exa.csi.ddn.com/zone=us-west
+```
+For removing label:
+```bash
+kubectl label node <node-name> topology.exa.csi.ddn.com/zone-
+```
+
+Important: If topology labels are added after driver installation, the node driver must be restarted on affected nodes.
+
+Restart node driver pod on specific node:
+```bash
+kubectl delete pod -l app=exascaler-csi-node -n <namespace> --field-selector spec.nodeName=<node-name>
+```
+
+or restart all node driver pods:
+```bash
+kubectl rollout restart daemonset exascaler-csi-node -n <namespace>
+```
+
+For using `volumeBindingMode: WaitForFirstConsumer`, the topology must be configured.
+
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: exascaler-csi-file-driver-sc-nginx-dynamic
+provisioner: exa.csi.ddn.com
+volumeBindingMode: WaitForFirstConsumer
+parameters:
+  configName: exa1
 ```
 
 ### CSI Parameters
@@ -387,7 +562,7 @@ If a parameter is available for both config and storage class, storage class par
 | `exaFS` | `exaFS` | [required] Full path to EXAScaler filesystem | `10.3.3.200@tcp:/csi-fs` |
 | `mountPoint`  |`mountPoint` | [required] Mountpoint on Kubernetes host where the exaFS will be mounted | `/exa-csi-mnt` |
 | - | `driver`    [required]  |  Installed driver name " exa.csi.ddn.com"        | `exa.csi.ddn.com` |
-| - | `volumeHandle` | [required for static volumes] EXAScaler name and path to volume on EXAScaler filesystem. The format is <configName:exaFS with colons replaced by semicolons:mountPoint:volumeName> | `exa1:10.3.3.200@tcp;/exaFS:/mountPoint-csi:/nginx-persistent`      |
+| - | `volumeHandle` | [required for static volumes] The format is &lt;configName&gt;:&lt;NID&gt;;&lt;Exascaler filesystem path&gt;:&lt;mountPoint&gt;:&lt;volumeHandle&gt;. **Note:** The NID and Exascaler filesystem path are separated by a semicolon ( ; ), all other fields are delimited by a colon ( : ). | `exa1:10.3.3.200@tcp;/exaFS:/mountPoint-csi:/nginx-persistent`      |
 | - | `exaMountUid`  | Uid which will be used to access the volume from the pod. | `1015` |
 | - | `exaMountGid`  | Gid which will be used to access the volume from the pod. | `1015` |
 | - | `projectId`    | Points to EXA project id to be used to set volume quota. Automatically generated by the driver if not provided. | `100001` |

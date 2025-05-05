@@ -1,0 +1,70 @@
+{{- if and .Values.metrics.enabled .Values.metrics.serviceMonitor.enabled }}
+
+{{- if .Values.metrics.prometheus.createClusterRole }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Values.metrics.prometheus.createClustrerRoleName }}
+rules:
+- apiGroups: [""]
+  resources:
+  - pods
+  - pods/metrics
+  - pods/status
+  - services
+  - endpoints
+  - nodes
+  - nodes/metrics
+  - nodes/proxy
+  - nodes/stats
+  - namespaces
+  - configmaps
+  - secrets
+  - serviceaccounts
+  - events
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources:
+  - deployments
+  - daemonsets
+  - replicasets
+  - statefulsets
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["monitoring.coreos.com"]
+  resources: 
+  - servicemonitors
+  - prometheusrules
+  - podmonitors
+  - alerts
+  - alertmanagers
+  - prometheuses
+  - thanosrulers
+  - probes
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["networking.k8s.io"] 
+  resources:
+  - ingresses
+  - networkpolicies
+  verbs: ["get", "list", "watch"]
+
+{{- end }}
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: exa-prometheus-clustre-role-binding
+subjects:
+- kind: ServiceAccount
+  name: {{ .Values.metrics.prometheus.serviceAccountName }}
+  namespace: {{ .Values.metrics.serviceMonitor.namespace }}
+roleRef:
+  kind: ClusterRole
+  {{- if .Values.metrics.prometheus.createClusterRole }}
+  name: {{ .Values.metrics.prometheus.createClustrerRoleName }}
+  {{- else }}
+  name: {{ .Values.metrics.prometheus.clusterRoleName }}
+  {{- end }}
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
+

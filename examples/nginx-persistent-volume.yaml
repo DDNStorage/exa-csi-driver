@@ -1,6 +1,6 @@
 # Nginx pod with pre provisioned storage using Exascaler CSI driver
 #
-# $ kubectl apply -f examples/kubernetes/nginx-persistent-volume.yaml
+# $ kubectl apply -f examples/nginx-persistent-volume.yaml
 #
 
 
@@ -38,6 +38,7 @@ spec:
     volumeHandle: exa1:10.204.86.113@tcp;/testfs:/mnt:/nginx-persistent # <configName:exaFS(colons replaced with semicolons):mountPoint:volumeName>
     volumeAttributes:         # volumeAttributes are the alternative of storageClass params for static (precreated) volumes.
       exaMountUid: "1001"           # Uid which will be used to access the volume in pod. Should be synced between EXA server and clients.
+      projectId: "4184814"
 ---
 
 
