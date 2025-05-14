@@ -13,7 +13,7 @@ spec:
       labels:
         app: exa-csi-metrics-exporter
     spec:
-      serviceAccountName: node-exporter-sa
+      serviceAccountName: exa-csi-metrics-sa
       automountServiceAccountToken: true    # Ensure token is mounted
       containers:
       - name: exporter
@@ -29,8 +29,8 @@ spec:
           name: http
           hostPort: {{ .Values.metrics.exporter.servicePort }}
         env:
-        - name: COLLECT_TIMEOUT
-          value: "{{ .Values.metrics.exporter.collectTimeout }}"
+        - name: COLLECT_INTERVAL
+          value: "{{ .Values.metrics.exporter.collectInterval }}"
         - name: LOG_LEVEL
           value: "{{ .Values.metrics.exporter.logLevel }}"
         - name: PORT
@@ -48,6 +48,9 @@ spec:
             fieldRef:
               fieldPath: spec.nodeName
         volumeMounts:
+        - name: secret
+          mountPath: /config
+          readOnly: true
         - name: ca-certificates
           mountPath: /var/run/secrets/kubernetes.io/serviceaccount
           readOnly: true
@@ -55,6 +58,9 @@ spec:
           mountPath: /host
           mountPropagation: Bidirectional
       volumes:
+      - name: secret
+        secret:
+          secretName: {{ .Values.secretName }}
       - name: host
         hostPath:
           path: /

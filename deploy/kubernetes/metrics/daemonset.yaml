@@ -12,12 +12,12 @@ spec:
       labels:
         app: exa-csi-metrics-exporter
     spec:
-      serviceAccountName: node-exporter-sa
+      serviceAccountName: exa-csi-metrics-sa
       automountServiceAccountToken: true    # Ensure token is mounted
       containers:
       - name: exporter
         imagePullPolicy: Always
-        image: quay.io/ddn/exa-csi-metrics-exporter:v2.3.4
+        image: quay.io/ddn/exa-csi-metrics-exporter:v2.3.5
         securityContext:
           privileged: true
           capabilities:
@@ -42,7 +42,14 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: COLLECT_INTERVAL
+          value: "30"
+        - name: LOG_LEVEL
+          value: "info"
         volumeMounts:
+        - name: secret
+          mountPath: /config
+          readOnly: true
         - name: ca-certificates
           mountPath: /var/run/secrets/kubernetes.io/serviceaccount
           readOnly: true
@@ -50,6 +57,9 @@ spec:
           mountPath: /host
           mountPropagation: Bidirectional
       volumes:
+      - name: secret
+        secret:
+          secretName: exascaler-csi-file-driver-config
       - name: host
         hostPath:
           path: /

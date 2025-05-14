@@ -2,13 +2,13 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: node-exporter-sa
+  name: exa-csi-metrics-sa
   namespace: {{ .Values.metrics.exporter.namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: metrics-reader
+  name: exa-csi-metrics-clusterrole
 rules:
 - apiGroups: [""]
   resources: ["persistentvolumes", "persistentvolumeclaims", "nodes", "pods"]
@@ -20,15 +20,37 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: metrics-reader-binding
+  name: exa-csi-metrics-clusterrole-binding
 subjects:
 - kind: ServiceAccount
-  name: node-exporter-sa
+  name: exa-csi-metrics-sa
   namespace: {{ .Values.metrics.exporter.namespace }}
 roleRef:
   kind: ClusterRole
-  name: metrics-reader
+  name: exa-csi-metrics-clusterrole
   apiGroup: rbac.authorization.k8s.io
-
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: exa-csi-leader-election
+  namespace: {{ .Values.metrics.exporter.namespace }}
+rules:
+- apiGroups: ["coordination.k8s.io"]
+  resources: ["leases"]
+  verbs: ["get", "watch", "list", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: exa-csi-leader-election
+  namespace: {{ .Values.metrics.exporter.namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: exa-csi-leader-election
+subjects:
+- kind: ServiceAccount
+  name: exa-csi-metrics-sa
+  namespace: {{ .Values.metrics.exporter.namespace }}
 {{- end }}
-
