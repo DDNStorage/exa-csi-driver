@@ -6,7 +6,7 @@ volumeNamePrefix: "pvc-exa"
 
 image:
   repository: "quay.io/ddn/exascaler-csi-file-driver"
-  tag: v2.3.4
+  tag: v2.3.5
   pullPolicy: "Always"
   # Overrides the image tag whose default is the chart appVersion.
   resources:
@@ -78,13 +78,13 @@ metrics:
   enabled: false
   exporter:
     repository: quay.io/ddn/exa-csi-metrics-exporter
-    tag: v2.3.4
+    tag: v2.3.5
     pullPolicy: Always
     containerPort: "9200"
     servicePort: "32666"
     namespace: default
     logLevel: info
-    collectTimeout: 30
+    collectInterval: 30
   serviceMonitor:
     enabled: false # set to true if using local prometheus operator
     interval: 30s

@@ -222,6 +222,16 @@ Pull latest helm chart configuration before installing or upgrading.
 
 
 ### Metrics exporter configuration.
+
+List of exported metrics:
+- exa_csi_pvc_capacity_bytes - Total capacity in bytes of PVs with provisioner exa.csi.ddn.com
+- exa_csi_pvc_used_bytes - Used bytes of PVs with provisioner exa.csi.ddn.com
+- exa_csi_pvc_available_bytes - Available bytes of PVs with provisioner exa.csi.ddn.com
+- exa_csi_pvc_pod_count - Number of pods using a PVC with provisioner exa.csi.ddn.com
+
+Each of those metrics reports with 3 labels: "pvc", "storage_class", "exported_namespace".
+These labels can be used to group the metrics by kubernetes storage class and namespace as shown below in [Add Prometheus Rules for StorageClass and Namespace Aggregation](#add-prometheus-rules-for-storageclass-and-namespace-aggregation)
+
 ```yaml
 metrics:
   enabled: true      # Enable metrics exporter 
