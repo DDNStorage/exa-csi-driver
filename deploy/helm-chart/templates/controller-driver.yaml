@@ -217,6 +217,7 @@ spec:
             - --immediate-topology=false
             - --feature-gates=Topology=true
             - --timeout={{ .Values.provisioner.timeout }}
+            - --worker-threads=2
           env:
             - name: GOMEMLIMIT
               valueFrom:

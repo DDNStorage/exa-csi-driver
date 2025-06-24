@@ -1,0 +1,66 @@
+# --------------------------------------
+# Exascaler CSI Driver - Storage Class
+# --------------------------------------
+
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: exascaler-csi-file-driver-sc-1
+provisioner: exa.csi.ddn.com
+allowVolumeExpansion: true
+parameters:
+  csi.storage.k8s.io/provisioner-secret-name: exa-csi-sc1
+  csi.storage.k8s.io/provisioner-secret-namespace: default
+  csi.storage.k8s.io/node-publish-secret-name: exa-csi-sc1
+  csi.storage.k8s.io/node-publish-secret-namespace: default
+  csi.storage.k8s.io/controller-expand-secret-name: exa-csi-sc1
+  csi.storage.k8s.io/controller-expand-secret-namespace: default
+  encryption: "true"
+  exaFS: 10.204.86.217@tcp:/testfs/storageclass10
+  mountPoint: /mnt1
+  exaMountUid: "1001"
+---
+
+# ------------------------------------------------
+# Exaxscaler CSI Driver - Persistent Volume Claim
+# ------------------------------------------------
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: exascaler-csi-file-driver-pvc-crypt-1
+spec:
+  storageClassName: exascaler-csi-file-driver-sc-1
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+---
+
+# ---------
+# Nginx pod
+# ---------
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-dynamic-volume-crypt-1
+spec:
+  securityContext:
+    runAsUser: 1001
+  containers:
+    - image: nginxinc/nginx-unprivileged
+      imagePullPolicy: IfNotPresent
+      name: nginx
+      ports:
+        - containerPort: 80
+          protocol: TCP
+      volumeMounts:
+        - mountPath: /data
+          name: exascaler-csi-file-driver-data
+  volumes:
+    - name: exascaler-csi-file-driver-data
+      persistentVolumeClaim:
+        claimName: exascaler-csi-file-driver-pvc-crypt-1
+        readOnly: false

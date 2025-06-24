@@ -354,7 +354,6 @@ kubectl apply -f exa-csi-rules.yaml
 Ensure that Prometheus is watching the monitoring namespace for PrometheusRule CRDs.
 
 
-
 ### Using docker load and kubectl commands
    ```bash
    docker load -i /opt/exascaler-csi-file-driver/bin/exascaler-csi-file-driver.tar
@@ -715,6 +714,133 @@ cd ..
 
 If you use a different `INSTALL_DIR` path, pass it in config using `DtarPath` parameter.
 
+### Encryption
+- Limitations:
+If you are planning to use volumes from more than one Exascaler Filesystem on a single worker node, then the encryption does not work in the current release.
+
+To use encrypted volumes, first create a secret with a passphrase.
+```bash
+kubectl create secret generic exa-csi-sc1 --from-literal=passphrase=pass1
+```
+
+Then, enable encryption in storage class parameters and pass the secret:
+
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: exascaler-csi-file-driver-sc-1
+provisioner: exa.csi.ddn.com
+allowVolumeExpansion: true
+parameters:
+  csi.storage.k8s.io/provisioner-secret-name: exa-csi-sc1
+  csi.storage.k8s.io/provisioner-secret-namespace: default
+  csi.storage.k8s.io/node-publish-secret-name: exa-csi-sc1
+  csi.storage.k8s.io/node-publish-secret-namespace: default
+  csi.storage.k8s.io/controller-expand-secret-name: exa-csi-sc1
+  csi.storage.k8s.io/controller-expand-secret-namespace: default
+  encryption: "true"
+```
+
+For static provisioning, encryption should be enabled on the volume before using it in kubernetes CSI.
+Make sure to use a protector (existing or create new one) with the same passphrase as in the secret.
+```yaml
+fscrypt setup /exa-mount
+
+echo "pass1" | fscrypt metadata create protector /exa-mount --source=custom_passphrase --name=persistent-protector --quiet
+
+fscrypt status /exa-mount
+
+
+protectorid=$(fscrypt status /exa-mount | awk '/persistent-protector/ {print $1}')
+echo "pass1" | fscrypt encrypt /exa-mount/static-enc --protector=/exa-mount:$protectorid --quiet
+
+```
+
+### Configuring the driver to use with ExaScaler nodemap.
+If you have a nodemap where some nodes mount subfolder instead of root filesystem, you will need
+to have at least 1 dedicated node able to mount the ExaScaler root fs to run the controller driver.
+Use `managementExaFs` secret to pass the full path to the mapped subdirectory.
+
+For example, we have the following filesystem:
+`192.168.5.1@tcp,192.168.6.1@tcp:/fs` with 2 subfolders `tenant1` and `tenant2`.
+Create 2 secrets (if using with encryption, bot `passphrase` and `managementExaFs` should be in the secret)
+
+```bash
+kubectl create secret generic exa-csi-sc1 --from-literal=passphrase=pass1 --from-literal=managementExaFs=192.168.5.1@tcp,192.168.6.1@tcp:/fs/tenant1
+```
+
+```bash
+kubectl create secret generic exa-csi-sc2 --from-literal=passphrase=pass2 --from-literal=managementExaFs=192.168.5.1@tcp,192.168.6.1@tcp:/fs/tenant2
+```
+
+And 2 storage classes:
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: exascaler-csi-file-driver-sc-1
+provisioner: exa.csi.ddn.com
+allowVolumeExpansion: true
+parameters:
+  csi.storage.k8s.io/provisioner-secret-name: exa-csi-sc1
+  csi.storage.k8s.io/provisioner-secret-namespace: default
+  csi.storage.k8s.io/node-publish-secret-name: exa-csi-sc1
+  csi.storage.k8s.io/node-publish-secret-namespace: default
+  csi.storage.k8s.io/controller-expand-secret-name: exa-csi-sc1
+  csi.storage.k8s.io/controller-expand-secret-namespace: default
+  encryption: "true"
+```
+
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: exascaler-csi-file-driver-sc-2
+provisioner: exa.csi.ddn.com
+allowVolumeExpansion: true
+parameters:
+  csi.storage.k8s.io/provisioner-secret-name: exa-csi-sc2
+  csi.storage.k8s.io/provisioner-secret-namespace: default
+  csi.storage.k8s.io/node-publish-secret-name: exa-csi-sc2
+  csi.storage.k8s.io/node-publish-secret-namespace: default
+  csi.storage.k8s.io/controller-expand-secret-name: exa-csi-sc1
+  csi.storage.k8s.io/controller-expand-secret-namespace: default
+  encryption: "true"
+```
+
+#### Scheduling controller driver on management node
+We need to run the controller driver on a dedicated node that has permissions to mount
+`192.168.5.1@tcp,192.168.6.1@tcp:/fs`.
+And we need to ensure that applications pods are not scheduled on this node, we will use `NoSchedule` taint to 
+ensure that. *Note:* There are other ways in kubernetes to configure this, such as `nodeSelector`, `affinity` and `topologySpreadConstraints`.
+```bash
+kubectl taint nodes node1 management:NoSchedule
+```
+Add a `toleration` and a `nodeName` to our driver `Deployment`.
+For helm chart deployment: https://github.com/DDNStorage/exa-csi-driver/blob/master/deploy/helm-chart/templates/controller-driver.yaml#L203
+For generic kubernetes yaml files: https://github.com/DDNStorage/exa-csi-driver/blob/master/deploy/kubernetes/exascaler-csi-file-driver.yaml#L216
+
+```yaml
+spec:
+  # serviceName: exascaler-csi-controller-service
+  selector:
+    matchLabels:
+      app: exascaler-csi-controller # has to match .spec.template.metadata.labels
+  template:
+    metadata:
+      labels:
+        app: exascaler-csi-controller
+    spec:
+      serviceAccount: exascaler-csi-controller-service-account
+      priorityClassName: {{ .Values.priorityClassName }}
+      tolerations:
+        - key: "management"
+          operator: "Exists"
+          effect: "NoSchedule"
+      nodeName: "node1"
+```
+This will ensure that controller driver is running on management node.
 
 ## Updating the driver version
 To update to a new driver version, you need to follow the following steps:
@@ -781,7 +907,7 @@ To collect all driver related logs, you can use the `kubectl logs` command.
 All in on command:
 ```bash
 mkdir exa-csi-logs
-for name in $(kubectl get pod -owide | grep exascaler | awk '{print $1}'); do kubectl logs $name --all-containers > exa-csi-logs/$name; done
+for name in $(kubectl get pod -owide | grep exa | awk '{print $1}'); do kubectl logs $name --all-containers > exa-csi-logs/$name; done
 ```
 
 To get logs from all containers of a single pod 
@@ -812,3 +938,7 @@ kubectl describe pvc <pvc_name> > exa-csi-logs/<pvc_name>
 kubectl describe pv <pv_name> > exa-csi-logs/<pv_name>
 kubectl describe pod <pod_name> > exa-csi-logs/<pod_name>
 ```
+
+#### Enabling debug logging
+To enable debug logging for the driver, change debug value to `true` in either the secret for generic kubernetes installation or the `values.yaml` for helm based installation and re-deploy the driver.
+To enable debug level logging for metrics, change the `logLevel` to `debug` in metrics exporter configuration. Either `https://github.com/DDNStorage/exa-csi-driver/blob/master/deploy/kubernetes/metrics/daemonset.yaml#L48` or `https://github.com/DDNStorage/exa-csi-driver/blob/master/deploy/helm-chart/values.yaml#L86` depending on how it was installed.
