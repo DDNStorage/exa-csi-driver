@@ -1,0 +1,96 @@
+# Nginx pod with pre provisioned storage using Exascaler CSI driver
+#
+# $ kubectl apply -f examples/nginx-persistent-volume.yaml
+#
+
+
+# --------------------------------------
+# Exascaler CSI Driver - Storage Class
+# --------------------------------------
+
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: exascaler-csi-file-driver-sc-nginx-persistent
+provisioner: exa.csi.ddn.com
+allowVolumeExpansion: true
+---
+
+
+# ------------------------------------------
+# Exascaler CSI Driver - Persistent Volume
+# ------------------------------------------
+
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: exascaler-csi-file-driver-pv-nginx-persistent
+  labels:
+    name: exascaler-csi-file-driver-pv-nginx-persistent
+spec:
+  storageClassName: exascaler-csi-file-driver-sc-nginx-persistent
+  accessModes:
+    - ReadWriteMany
+  capacity:
+    storage: 1Gi
+  csi:
+    driver: exa.csi.ddn.com
+    volumeHandle: exa1:10.204.86.217@tcp;/testfs/storageclass13:/mnt:/nginx-persistent # <configName:exaFS(colons replaced with semicolons):mountPoint:volumeName>
+    nodePublishSecretRef:
+      name: exa-csi-sc1
+      namespace: default
+    volumeAttributes:         # volumeAttributes are the alternative of storageClass params for static (precreated) volumes.
+      encryption: "true"
+      mountPoint: /mnt1
+      exaMountUid: "1001"
+---
+
+
+# ------------------------------------------------
+# Exascaler CSI Driver - Persistent Volume Claim
+# ------------------------------------------------
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: exascaler-csi-file-driver-pvc-nginx-persistent
+spec:
+  storageClassName: exascaler-csi-file-driver-sc-nginx-persistent
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+  selector:
+    matchLabels:
+      # to create 1-1 relationship for pod - persistent volume use unique labels
+      name: exascaler-csi-file-driver-pv-nginx-persistent
+---
+
+
+# ---------
+# Nginx pod
+# ---------
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-persistent-volume
+spec:
+  securityContext:
+    runAsUser: 1001
+  containers:
+    - image: nginxinc/nginx-unprivileged
+      imagePullPolicy: IfNotPresent
+      name: nginx
+      ports:
+        - containerPort: 80
+          protocol: TCP
+      volumeMounts:
+        - mountPath: /usr/share/nginx/html
+          name: exascaler-csi-file-driver-data
+  volumes:
+    - name: exascaler-csi-file-driver-data
+      persistentVolumeClaim:
+        claimName: exascaler-csi-file-driver-pvc-nginx-persistent
+        readOnly: false

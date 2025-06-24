@@ -228,6 +228,7 @@ spec:
             - --immediate-topology=false
             - --feature-gates=Topology=true
             - --timeout=120m
+            - --worker-threads=2
           volumeMounts:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy
@@ -271,7 +272,7 @@ spec:
             capabilities:
               add: ['SYS_ADMIN']
             allowPrivilegeEscalation: true
-          image: quay.io/ddn/exascaler-csi-file-driver:v2.3.5
+          image: quay.io/ddn/exascaler-csi-file-driver:v2.4.0
           imagePullPolicy: Always
           args:
             - --nodeid=$(KUBE_NODE_NAME)
@@ -397,7 +398,7 @@ spec:
             capabilities:
               add: ['SYS_ADMIN']
             allowPrivilegeEscalation: true
-          image: quay.io/ddn/exascaler-csi-file-driver:v2.3.5
+          image: quay.io/ddn/exascaler-csi-file-driver:v2.4.0
           imagePullPolicy: Always
           args:
             - --nodeid=$(KUBE_NODE_NAME)
