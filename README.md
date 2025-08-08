@@ -586,8 +586,7 @@ If a parameter is available for both config and storage class, storage class par
 |`tempMountPoint` | `tempMountPoint` | [Optional] Used when `exaFS` points to a subdirectory that does not exist on Exascaler and will be automatically created by the driver. This parameter sets the directory where Exascaler filesystem will be temporarily mounted to create the subdirectory. | `/tmp/exafs-mnt` |
 | `volumeDirPermissions` | `volumeDirPermissions` | [Optional] Defines file permissions for mounted volumes. | `0777` |
 | `hotNodes` | `hotNodes` | Determines whether `HotNodes` feature should be used. This feature can only be used by the driver when Hot Nodes (PCC) service is disabled and not used manually on the kubernetes workers. | `false` |
-| `pccCache` | `pccCache` | Directory for cached files of the file system. Note that lpcc does not recognize directories with a
-trailing slash (“/” at the end). | `/csi-pcc` |
+| `pccCache` | `pccCache` | Directory for cached files of the file system. Note that lpcc does not recognize directories with a trailing slash (“/” at the end). | `/csi-pcc` |
 | `pccAutocache` | `pccAutocache` | Condition for automatic file attachment (caching) | `projid={500}` |
 | `pccPurgeHighUsage` | `pccPurgeHighUsage` | If the disk usage of cache device is higher than high_usage, start detaching the files. Defaults to 90 (90% disk/inode usage). | `90` |
 | `pccPurgeLowUsage` | `pccPurgeLowUsage` | If the disk usage of cache device is lower than low_usage, stop detaching the files. Defaults to 75 (75% disk/inode usage). | `70` |
