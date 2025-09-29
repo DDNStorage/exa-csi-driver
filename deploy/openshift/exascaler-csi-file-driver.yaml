@@ -267,6 +267,14 @@ rules:
   - list
   - watch
   - update
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
 ---
 
 apiVersion: rbac.authorization.k8s.io/v1
@@ -356,7 +364,7 @@ spec:
         volumeMounts:
           - name: socket-dir
             mountPath: /csi/
-      - image: quay.io/ddn/exascaler-openshift-file-driver:v2.4.0
+      - image: quay.io/ddn/exascaler-openshift-file-driver:v2.5.0
         imagePullPolicy: Always
         args:
           - --nodeid=$(KUBE_NODE_NAME)
@@ -448,7 +456,7 @@ spec:
           securityContext:
             privileged: true
             allowPrivilegeEscalation: true
-          image: quay.io/ddn/exascaler-openshift-file-driver:v2.4.0
+          image: quay.io/ddn/exascaler-openshift-file-driver:v2.5.0
           imagePullPolicy: Always
           args:
             - --nodeid=$(KUBE_NODE_NAME)
@@ -469,6 +477,9 @@ spec:
               mountPath: /csi
             - name: secret
               mountPath: /config
+            - name: plugin-dir
+              mountPath: /var/lib/kubelet/plugins
+              mountPropagation: Bidirectional
       volumes:
         - name: kubelet-dir
           hostPath:
@@ -485,6 +496,10 @@ spec:
         - name: registration-dir
           hostPath:
             path: /var/lib/kubelet/plugins_registry/
+            type: Directory
+        - name: plugin-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins
             type: Directory
         - name: secret
           secret:

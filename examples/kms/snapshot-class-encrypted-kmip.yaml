@@ -1,0 +1,15 @@
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: exascaler-csi-snapshot-class-encrypted-kmip
+driver: exa.csi.ddn.com
+deletionPolicy: Delete
+parameters:
+  snapshotUtility: tar
+  snapshotFolder: csi-snapshots
+  # dtarPath: /opt/ddn/mpifileutils/bin/dtar
+  snapshotMd5Verify: "false"
+  encryption: "true"
+  kms.provider: "kmip"
+  csi.storage.k8s.io/snapshotter-secret-name: exa-csi-kmip-secret-with-endpoint
+  csi.storage.k8s.io/snapshotter-secret-namespace: default

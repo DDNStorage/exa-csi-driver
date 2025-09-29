@@ -1,6 +1,6 @@
 # Take a new snapshot
 #
-# !!! Make sure to run exa-dynamic-nginx-2.yaml before running this example
+# !!! Make sure to run exa-dynamic-nginx.yaml before running this example
 # !!! Make sure to run snapshot-class.yaml before running this example
 #
 # $ kubectl apply -f examples/snapshot-from-dynamic.yaml

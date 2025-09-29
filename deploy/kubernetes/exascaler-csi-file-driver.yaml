@@ -246,7 +246,7 @@ spec:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
         - name: csi-snapshotter
-          image: registry.k8s.io/sig-storage/csi-snapshotter:v5.0.1
+          image: registry.k8s.io/sig-storage/csi-snapshotter:v6.3.2
           imagePullPolicy: IfNotPresent
           args:
             - -v=3
@@ -272,7 +272,7 @@ spec:
             capabilities:
               add: ['SYS_ADMIN']
             allowPrivilegeEscalation: true
-          image: quay.io/ddn/exascaler-csi-file-driver:v2.4.0
+          image: quay.io/ddn/exascaler-csi-file-driver:v2.5.0
           imagePullPolicy: Always
           args:
             - --nodeid=$(KUBE_NODE_NAME)
@@ -330,6 +330,12 @@ rules:
   - apiGroups: ['']
     resources: ['nodes']
     verbs: ['get']
+  - apiGroups: ['']
+    resources: ['persistentvolumes']
+    verbs: ['get', 'list', 'watch']
+  - apiGroups: ['']
+    resources: ['secrets']
+    verbs: ['get', 'list', "watch"]
 ---
 
 kind: ClusterRoleBinding
@@ -398,7 +404,7 @@ spec:
             capabilities:
               add: ['SYS_ADMIN']
             allowPrivilegeEscalation: true
-          image: quay.io/ddn/exascaler-csi-file-driver:v2.4.0
+          image: quay.io/ddn/exascaler-csi-file-driver:v2.5.0
           imagePullPolicy: Always
           args:
             - --nodeid=$(KUBE_NODE_NAME)
@@ -420,6 +426,9 @@ spec:
             - name: pods-mount-dir
               mountPath: /var/lib/kubelet/pods
               mountPropagation: Bidirectional
+            - name: plugin-dir
+              mountPath: /var/lib/kubelet/plugins
+              mountPropagation: Bidirectional
       volumes:
         - name: socket-dir
           hostPath:
@@ -436,6 +445,10 @@ spec:
         - name: host
           hostPath:
             path: /
+            type: Directory
+        - name: plugin-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins
             type: Directory
         - name: secret
           secret:

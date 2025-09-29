@@ -24,6 +24,12 @@ rules:
   - apiGroups: ['']
     resources: ['nodes']
     verbs: ['get']
+  - apiGroups: ['']
+    resources: ['persistentvolumes']
+    verbs: ['get', 'list', 'watch']
+  - apiGroups: ['']
+    resources: ['secrets']
+    verbs: ['get', 'list', "watch"]
 ---
 
 kind: ClusterRoleBinding
@@ -138,6 +144,9 @@ spec:
             - name: pods-mount-dir
               mountPath: /var/lib/kubelet/pods
               mountPropagation: Bidirectional
+            - name: plugin-dir
+              mountPath: /var/lib/kubelet/plugins
+              mountPropagation: Bidirectional
       volumes:
         - name: socket-dir
           hostPath:
@@ -154,6 +163,10 @@ spec:
         - name: host
           hostPath:
             path: /
+            type: Directory
+        - name: plugin-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins
             type: Directory
         - name: secret
           secret:

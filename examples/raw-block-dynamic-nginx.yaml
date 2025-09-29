@@ -1,0 +1,56 @@
+# --------------------------------------
+# Exascaler CSI Driver - Storage Class
+# --------------------------------------
+
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: exascaler-csi-file-driver-sc
+provisioner: exa.csi.ddn.com
+allowVolumeExpansion: true
+---
+
+# ------------------------------------------------
+# Exaxscaler CSI Driver - Persistent Volume Claim
+# ------------------------------------------------
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: exascaler-csi-file-driver-pvc-block
+spec:
+  storageClassName: exascaler-csi-file-driver-sc
+  accessModes:
+    - ReadWriteMany
+  volumeMode: Block
+  resources:
+    requests:
+      storage: 1Gi
+---
+
+# ---------
+# Nginx pod
+# ---------
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-dynamic-volume
+spec:
+  containers:
+    - image: nginx
+      imagePullPolicy: IfNotPresent
+      name: nginx
+      securityContext:
+        privileged: true
+      ports:
+        - containerPort: 80
+          protocol: TCP
+      volumeDevices:
+        - devicePath: /dev/sdc
+          name: exascaler-csi-file-driver-data
+  volumes:
+    - name: exascaler-csi-file-driver-data
+      persistentVolumeClaim:
+        claimName: exascaler-csi-file-driver-pvc-block
+        readOnly: false

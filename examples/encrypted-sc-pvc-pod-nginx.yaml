@@ -11,8 +11,8 @@ allowVolumeExpansion: true
 parameters:
   csi.storage.k8s.io/provisioner-secret-name: exa-csi-sc1
   csi.storage.k8s.io/provisioner-secret-namespace: default
-  csi.storage.k8s.io/node-publish-secret-name: exa-csi-sc1
-  csi.storage.k8s.io/node-publish-secret-namespace: default
+  csi.storage.k8s.io/node-stage-secret-name: exa-csi-sc1
+  csi.storage.k8s.io/node-stage-secret-namespace: default
   csi.storage.k8s.io/controller-expand-secret-name: exa-csi-sc1
   csi.storage.k8s.io/controller-expand-secret-namespace: default
   encryption: "true"
