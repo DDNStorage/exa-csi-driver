@@ -36,7 +36,7 @@ spec:
   csi:
     driver: exa.csi.ddn.com
     volumeHandle: exa1:10.204.86.217@tcp;/testfs/storageclass13:/mnt:/nginx-persistent # <configName:exaFS(colons replaced with semicolons):mountPoint:volumeName>
-    nodePublishSecretRef:
+    nodeStageSecretRef:
       name: exa-csi-sc1
       namespace: default
     volumeAttributes:         # volumeAttributes are the alternative of storageClass params for static (precreated) volumes.

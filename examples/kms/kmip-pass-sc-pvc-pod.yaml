@@ -1,0 +1,58 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: exascaler-csi-file-driver-sc-kmip
+provisioner: exa.csi.ddn.com
+allowVolumeExpansion: true
+parameters:
+  csi.storage.k8s.io/provisioner-secret-name: exa-csi-kmip-secret-with-endpoint
+  csi.storage.k8s.io/provisioner-secret-namespace: default
+  csi.storage.k8s.io/node-stage-secret-name: exa-csi-kmip-secret-with-endpoint
+  csi.storage.k8s.io/node-stage-secret-namespace: default
+  csi.storage.k8s.io/controller-expand-secret-name: exa-csi-kmip-secret-with-endpoint
+  csi.storage.k8s.io/controller-expand-secret-namespace: default
+  encryption: "true"
+  kms.provider: "kmip"
+  exaFS: 10.204.86.113@tcp:/testfs/functional-test-2
+  mountPoint: /mnt1
+  exaMountUid: "1001"
+  exaMountGid: "1001"
+
+---
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: exascaler-csi-file-driver-pvc-kmip
+spec:
+  storageClassName: exascaler-csi-file-driver-sc-kmip
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+---
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-kmip
+spec:
+  securityContext:
+    runAsUser: 1001
+    fsGroup: 1001
+  containers:
+    - image: nginxinc/nginx-unprivileged
+      imagePullPolicy: IfNotPresent
+      name: nginx
+      ports:
+        - containerPort: 80
+          protocol: TCP
+      volumeMounts:
+        - mountPath: /data
+          name: exascaler-csi-file-driver-data
+  volumes:
+    - name: exascaler-csi-file-driver-data
+      persistentVolumeClaim:
+        claimName: exascaler-csi-file-driver-pvc-kmip
+        readOnly: false

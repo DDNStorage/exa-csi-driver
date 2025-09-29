@@ -1,0 +1,24 @@
+---
+kind: ConfigMap 
+apiVersion: v1 
+metadata:
+  name: fio-job-config
+data:
+  fio.job: |-
+    [global]
+    ioengine=psync
+    direct=1
+    buffered=0
+    size=1G
+    iodepth=100
+    numjobs=10
+    group_reporting
+    refill_buffers
+    rwmixread=10
+    norandommap
+    randrepeat=0
+    percentage_random=0
+    bs=512K
+    buffer_compress_percentage=50
+    rw=read
+    [testjob]

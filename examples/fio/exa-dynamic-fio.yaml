@@ -1,0 +1,61 @@
+# --------------------------------------
+# Exascaler CSI Driver - Storage Class
+# --------------------------------------
+
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: exascaler-csi-file-driver-sc
+provisioner: exa.csi.ddn.com
+allowVolumeExpansion: true
+parameters:
+  hotNodes: "true"
+  pccCache: "/fio-pcc"
+---
+
+# ------------------------------------------------
+# Exascaler CSI Driver - Persistent Volume Claim
+# ------------------------------------------------
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: exascaler-csi-file-driver-pvc
+spec:
+  storageClassName: exascaler-csi-file-driver-sc
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi
+---
+
+# ---------------
+# FIO workload pod
+# ---------------
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fio-dynamic-mount-volume
+spec:
+  containers:
+  - image: joshuarobinson/fio:3.19
+    imagePullPolicy: IfNotPresent
+    name: fio
+    command: ["sh"]
+    args: ["-c", "echo ${HOSTNAME} && mkdir -p /data/${HOSTNAME} && fio /configs/fio.job --eta=never --directory=/data/${HOSTNAME}"]
+    volumeMounts:
+    - mountPath: /configs
+      name: fio-config-vol
+    - mountPath: /data
+      name: exascaler-csi-file-driver-data
+  restartPolicy: Always
+  volumes:
+  - name: fio-config-vol
+    configMap:
+      name: fio-job-config
+  - name: exascaler-csi-file-driver-data
+    persistentVolumeClaim:
+      claimName: exascaler-csi-file-driver-pvc
+      readOnly: false

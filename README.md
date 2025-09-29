@@ -8,18 +8,20 @@ Releases can be found here - https://github.com/DDNStorage/exa-csi-driver/releas
 |>=v2.3.0|>=2.14.0-ddn182|>=6.3.2|
 
 ## Feature List
-|Feature|Feature Status|CSI Driver Version|CSI Spec Version|Kubernetes Version|Openshift Version|
-|--- |--- |--- |--- |--- |--- |
-|Static Provisioning|GA|>= 1.0.0|>= 1.0.0|>=1.18|>=4.13|
-|Dynamic Provisioning|GA|>= 1.0.0|>= 1.0.0|>=1.18|>=4.13|
-|RW mode|GA|>= 1.0.0|>= 1.0.0|>=1.18|>=4.13|
-|RO mode|GA|>= 1.0.0|>= 1.0.0|>=1.18|>=4.13|
-|Expand volume|GA|>= 1.0.0|>= 1.1.0|>=1.18|>=4.13|
-|StorageClass Secrets|GA|>= 1.0.0|>=1.0.0|>=1.18|>=4.13|
-|Mount options|GA|>= 1.0.0|>= 1.0.0|>=1.18|>=4.13|
-|Topology|GA|>= 2.0.0|>= 1.0.0|>=1.17|>=4.13|
-|Snapshots|GA|>= 2.2.6|>= 1.0.0|>=1.17|>=4.13|
-|Exascaler Hot Nodes|GA|>= 2.3.0|>= 1.0.0|>=1.18| Not supported yet|
+|Feature|Feature Status|CSI Driver Version|CSI Spec Version|Kubernetes Version|Openshift Version|Arm64 support|
+|--- |--- |--- |--- |--- |--- |--- |
+|Static Provisioning|GA|>= 1.0.0|>= 1.0.0|>=1.18|>=4.13|>=2.5.0|
+|Dynamic Provisioning|GA|>= 1.0.0|>= 1.0.0|>=1.18|>=4.13|>=2.5.0|
+|RW mode|GA|>= 1.0.0|>= 1.0.0|>=1.18|>=4.13|>=2.5.0|
+|RO mode|GA|>= 1.0.0|>= 1.0.0|>=1.18|>=4.13|>=2.5.0|
+|Expand volume|GA|>= 1.0.0|>= 1.1.0|>=1.18|>=4.13|>=2.5.0|
+|StorageClass Secrets|GA|>= 1.0.0|>=1.0.0|>=1.18|>=4.13|>=2.5.0|
+|Mount options|GA|>= 1.0.0|>= 1.0.0|>=1.18|>=4.13|>=2.5.0|
+|Topology|GA|>= 2.0.0|>= 1.0.0|>=1.17|>=4.13|>=2.5.0|
+|Snapshots|GA|>= 2.2.6|>= 1.0.0|>=1.17|>=4.13|>=2.5.0|
+|Exascaler Hot Nodes|GA|>= 2.3.0|>= 1.0.0|>=1.18| Not supported yet|Not supported yet|
+|Compression|GA|>= 2.3.5|>= 1.0.0|>=1.17|>=4.13|>=2.5.0|
+|Encryption|GA|>= 2.3.5|>= 1.0.0|>=1.17| Not supported yet|>=2.5.0|
 
 ## Access Modes support
 |Access mode| Supported in version|
@@ -185,6 +187,31 @@ To enable `dtar` set `snapshotUtility: dtar` in config.
 
 ### Prerequisites
 EXAScaler client must be installed and configured on all kubernetes nodes. Please refer to EXAScaler Installation and Administration Guide.
+
+#### Using volumeMode: Block
+To enable `volumeMode: Block` (raw block device support), your nodes must have:
+
+- The **ublk** kernel module (`ublk_drv`) enabled (e.g., built into or loaded by your Linux kernel).
+- The **ublksrv** userspace client installed and running on each node.
+
+```bash
+git clone https://github.com/ublk-org/ublksrv.git
+cd ublksrv
+
+autoreconf -i
+./configure   # requires pkg-config and liburing development headers
+# If liburing ≥ 2.2 is not available from your distro:
+# PKG_CONFIG_PATH=path/to/liburing-source \
+#   ./configure CFLAGS="-Ipath/to/liburing/src/include" \
+#               CXXFLAGS="-Ipath/to/liburing/src/include" \
+#               LDFLAGS="-Lpath/to/liburing/src"
+
+make
+sudo make install
+
+# Load the ublk kernel module (if not already loaded)
+sudo modprobe ublk_drv
+```
 
 ### Installation
 Clone or untar driver (depending on where you get the driver)
@@ -594,7 +621,8 @@ If a parameter is available for both config and storage class, storage class par
 | `pccPurgeInterval` | `pccPurgeInterval` | Interval for lpcc_purge to check cache device usage, in seconds. Defaults to 30. | `30` |
 | `pccPurgeLogLevel` | `pccPurgeLogLevel` | Log level for lpcc_purge: either “fatal”, “error”, “warn”, “normal”, “info” (default), or “debug”. | `info` |
 | `pccPurgeForceScanInterval` | `pccPurgeForceScanInterval` | Scan PCC backends forcefully after this number of seconds to refresh statistic data. | `30` |
-| - | `compression` | Algorithm ["lz4", "gzip", "lzo"] to use for data compression. default is "false" | `false` | 
+| - | `compression` | Algorithm ["lz4", "gzip", "lzo"] to use for data compression. default is "false". Compression cannot be used with encryption enabled. | `false` | 
+| - | `snapshotCompression` | Defines whether compression should be used when creating snapshots. Only usable with `tar`, not supported with `dtar`. Do not use if creation speed is more important than space. Default is "false". | `false` |
 | - | `configName` | Config entry name to use from the config map | `exa1` |
 
 #### _PersistentVolumeClaim_ (pointing to created _PersistentVolume_)
@@ -665,6 +693,8 @@ kubectl apply -f examples/nginx-from-snapshot.yaml
 ```
 
 Exascaler CSI driver supports 2 snapshot modes: `tar` or `dtar`.
+Note: Both modes consume large amounts of memory for large snapshots, so configure the driver limits accordingly.
+
 Default mode is `tar`.
 To enable `dtar` set `snapshotUtility: dtar` in config.
 Dtar is much faster but requires mpifileutils `dtar` installed on all the nodes as a prerequisite.
@@ -714,8 +744,9 @@ cd ..
 If you use a different `INSTALL_DIR` path, pass it in config using `DtarPath` parameter.
 
 ### Encryption
-- Limitations:
-If you are planning to use volumes from more than one Exascaler Filesystem on a single worker node, then the encryption does not work in the current release.
+Limitations:
+- If you are planning to use volumes from more than one Exascaler Filesystem on a single worker node, then the encryption does not work in the current release.
+- Encryption cannot be used with compression enabled.
 
 To use encrypted volumes, first create a secret with a passphrase.
 ```bash
@@ -734,8 +765,8 @@ allowVolumeExpansion: true
 parameters:
   csi.storage.k8s.io/provisioner-secret-name: exa-csi-sc1
   csi.storage.k8s.io/provisioner-secret-namespace: default
-  csi.storage.k8s.io/node-publish-secret-name: exa-csi-sc1
-  csi.storage.k8s.io/node-publish-secret-namespace: default
+  csi.storage.k8s.io/node-stage-secret-name: exa-csi-sc1
+  csi.storage.k8s.io/node-stage-secret-namespace: default
   csi.storage.k8s.io/controller-expand-secret-name: exa-csi-sc1
   csi.storage.k8s.io/controller-expand-secret-namespace: default
   encryption: "true"
@@ -754,6 +785,146 @@ fscrypt status /exa-mount
 protectorid=$(fscrypt status /exa-mount | awk '/persistent-protector/ {print $1}')
 echo "pass1" | fscrypt encrypt /exa-mount/static-enc --protector=/exa-mount:$protectorid --quiet
 
+```
+### KMIP Integration
+The Exascaler CSI driver supports integration with KMIP (Key Management Interoperability Protocol) compliant Key Management Services for encryption key retrieval. 
+
+> **Note:** Supports SecretData Object of type Password from KMIP server.
+
+### Configuration
+
+#### Kubernetes Secret Parameters
+
+The following parameters must be provided via Kubernetes secrets:
+
+| Parameter | Description | Required | Default |
+|-----------|-------------|----------|---------|
+| `KMIP_UNIQUE_IDENTIFIER` | Unique identifier for the key in the KMIP server (Can be overridden in storage class) | Yes | - |
+| `KMIP_CLIENT_CERT` | Client certificate for mutual TLS authentication | Yes | - |
+| `KMIP_CLIENT_KEY` | Private key corresponding to the client certificate | Yes | - |
+| `KMIP_CA_CERT` | CA certificate to verify the KMIP server | Yes | - |
+| `KMIP_ENDPOINT` | KMIP server endpoint (Can be overridden in storage class) | Yes | - |
+| `KMIP_SERVER_NAME` | Server name for TLS verification (should match certificate CN/SAN) | No  | `"client"` |
+| `KMIP_TLS_MIN_VERSION` | Minimum TLS version (`1.0`, `1.1`, `1.2`, `1.3`) | No | `"1.2"` |
+| `KMIP_TLS_MAX_VERSION` | Maximum TLS version (`1.0`, `1.1`, `1.2`, `1.3`) | No | `"1.2"` |
+| `KMIP_CIPHER_SUITES_SECURE` | Include secure cipher suites (`true`/`false`) | No | `false` |
+| `KMIP_CIPHER_SUITES_INSECURE` | Include insecure cipher suites (`true`/`false`) | No | `false` |
+
+#### StorageClass Parameters
+
+| Parameter | Description | Required | Example |
+|-----------|-------------|----------|---------|
+| `kms.provider` | Must be set to `"kmip"` | Yes | `kmip` |
+| `kms.endpoint` | KMIP server endpoint (overrides secret value (KMIP_ENDPOINT)) | No | `10.204.40.223:5696` |
+| `kms.key` | Key identifier (overrides secret value (KMIP_UNIQUE_IDENTIFIER)) | No | `"10"` |
+
+#### Secure Cipher Suites (`KMIP_CIPHER_SUITES_SECURE: "true"`)
+
+These are the recommended cipher suites with strong security:
+
+- `TLS_AES_128_GCM_SHA256`
+- `TLS_AES_256_GCM_SHA384`  
+- `TLS_CHACHA20_POLY1305_SHA256`
+- `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`
+- `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA`
+- `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`
+- `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA`
+- `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`
+- `TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`
+- `TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`
+- `TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384`
+- `TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256`
+- `TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256`
+
+#### Insecure Cipher Suites (`KMIP_CIPHER_SUITES_INSECURE: "true"`)
+
+These cipher suites have known security issues and should only be used for compatibility with legacy systems:
+
+- `TLS_RSA_WITH_RC4_128_SHA`
+- `TLS_RSA_WITH_3DES_EDE_CBC_SHA`
+- `TLS_RSA_WITH_AES_128_CBC_SHA`
+- `TLS_RSA_WITH_AES_256_CBC_SHA`
+- `TLS_RSA_WITH_AES_128_CBC_SHA256`
+- `TLS_RSA_WITH_AES_128_GCM_SHA256`
+- `TLS_RSA_WITH_AES_256_GCM_SHA384`
+- `TLS_ECDHE_ECDSA_WITH_RC4_128_SHA`
+- `TLS_ECDHE_RSA_WITH_RC4_128_SHA`
+- `TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA`
+- `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`
+- `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`
+
+
+**Default Go behavior (Neither specified) - Will work for most of the cases:**
+```yaml
+KMIP_CIPHER_SUITES_SECURE: "false"
+KMIP_CIPHER_SUITES_INSECURE: "false"
+```
+
+**Secure only:**
+```yaml
+KMIP_CIPHER_SUITES_SECURE: "true"
+KMIP_CIPHER_SUITES_INSECURE: "false"
+```
+
+**Legacy compatibility (All suites):**
+```yaml
+KMIP_CIPHER_SUITES_SECURE: "true"
+KMIP_CIPHER_SUITES_INSECURE: "true"
+```
+
+### Example Configuration
+
+#### Create KMIP Secret
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: exa-csi-kmip-secret
+type: Opaque
+stringData:
+  KMIP_ENDPOINT: "10.204.40.223:5696"
+  KMIP_TLS_MIN_VERSION: "1.2"
+  KMIP_TLS_MAX_VERSION: "1.2"
+  KMIP_CIPHER_SUITES_SECURE: "false"
+  KMIP_CIPHER_SUITES_INSECURE: "false"
+  KMIP_UNIQUE_IDENTIFIER: "10"
+  KMIP_SERVER_NAME: "localhost"
+  KMIP_CLIENT_CERT: |
+    -----BEGIN CERTIFICATE-----
+    MIIDSTCCAjGgAwIBAgIUNsEIB1XlTCuJO9DL1Hd7jbt5DjkwDQYJKoZIhvcNAQEL
+    ...
+    -----END CERTIFICATE-----
+  KMIP_CLIENT_KEY: |
+    -----BEGIN PRIVATE KEY-----
+    MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQD8E8Jk0VBDt2Z+
+    ...
+    -----END PRIVATE KEY-----
+  KMIP_CA_CERT: |
+    -----BEGIN CERTIFICATE-----
+    MIIDBTCCAe2gAwIBAgIUdhMVz/sCtcID2tuzJhXtBcaDI1swDQYJKoZIhvcNAQEL
+    ...
+    -----END CERTIFICATE-----
+```
+
+#### Create StorageClass
+
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: exascaler-csi-file-driver-sc-kmip
+provisioner: exa.csi.ddn.com
+allowVolumeExpansion: true
+parameters:
+  csi.storage.k8s.io/provisioner-secret-name: exa-csi-kmip-secret
+  csi.storage.k8s.io/provisioner-secret-namespace: default
+  csi.storage.k8s.io/node-stage-secret-name: exa-csi-kmip-secret
+  csi.storage.k8s.io/node-stage-secret-namespace: default
+  csi.storage.k8s.io/controller-expand-secret-name: exa-csi-kmip-secret
+  csi.storage.k8s.io/controller-expand-secret-namespace: default
+  encryption: "true"
+  kms.provider: "kmip"
 ```
 
 ### Configuring the driver to use with ExaScaler nodemap.
@@ -784,8 +955,8 @@ allowVolumeExpansion: true
 parameters:
   csi.storage.k8s.io/provisioner-secret-name: exa-csi-sc1
   csi.storage.k8s.io/provisioner-secret-namespace: default
-  csi.storage.k8s.io/node-publish-secret-name: exa-csi-sc1
-  csi.storage.k8s.io/node-publish-secret-namespace: default
+  csi.storage.k8s.io/node-stage-secret-name: exa-csi-sc1
+  csi.storage.k8s.io/node-stage-secret-namespace: default
   csi.storage.k8s.io/controller-expand-secret-name: exa-csi-sc1
   csi.storage.k8s.io/controller-expand-secret-namespace: default
   encryption: "true"
@@ -801,8 +972,8 @@ allowVolumeExpansion: true
 parameters:
   csi.storage.k8s.io/provisioner-secret-name: exa-csi-sc2
   csi.storage.k8s.io/provisioner-secret-namespace: default
-  csi.storage.k8s.io/node-publish-secret-name: exa-csi-sc2
-  csi.storage.k8s.io/node-publish-secret-namespace: default
+  csi.storage.k8s.io/node-stage-secret-name: exa-csi-sc2
+  csi.storage.k8s.io/node-stage-secret-namespace: default
   csi.storage.k8s.io/controller-expand-secret-name: exa-csi-sc1
   csi.storage.k8s.io/controller-expand-secret-namespace: default
   encryption: "true"
@@ -840,6 +1011,20 @@ spec:
       nodeName: "node1"
 ```
 This will ensure that controller driver is running on management node.
+
+### Setting Exa parameters for the mountpoint.
+The driver allows parameters to be passed through `exaParams` in the storage class parameters, which are then applied using `lctl set_param`.
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: exascaler-csi-file-driver-sc
+provisioner: exa.csi.ddn.com
+allowVolumeExpansion: true
+parameters:
+  exaParams: "osc.*.checksums=0 ldlm.namespaces.*.lru_max_age=5000000"
+```
+These parameters should always be passed with `*` wildcard, which will be substituted for the actual PVC mountpoint by the driver. Multiple parameters should be passed with a space dilimiter.
 
 ## Updating the driver version
 To update to a new driver version, you need to follow the following steps:

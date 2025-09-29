@@ -1,0 +1,16 @@
+# Take a new snapshot
+#
+# !!! Make sure to run kmip-pass-sc-pvc-pod.yaml before running this example
+# !!! Make sure to run snapshot-class-encrypted-kmip.yaml before running this example
+#
+# $ kubectl apply -f examples/kms/snapshots-from-dynamic-volume-kmip.yaml
+#
+
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: snapshot-from-encrypted-kmip
+spec:
+  volumeSnapshotClassName: exascaler-csi-snapshot-class-encrypted-kmip
+  source:
+    persistentVolumeClaimName: exascaler-csi-file-driver-pvc-kmip

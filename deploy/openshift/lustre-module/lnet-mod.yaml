@@ -9,9 +9,10 @@ spec:
         moduleName: lnet
         dirName: /opt
         modulesLoadingOrder:
-          - lnet
+          # - ko2iblnd  # for Infiniband network
           - ksocklnd
-          # - ko2iblnd # for Infiniband network
+          - lnet
+          # - libcfs  # for Infiniband network
 
       kernelMappings:  # At least one item is required
         # For any other kernel, build the image using the Dockerfile in the my-kmod ConfigMap.
