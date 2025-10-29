@@ -1,0 +1,133 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: kubevirt-sc-block
+provisioner: exa.csi.ddn.com
+allowVolumeExpansion: true
+parameters:
+  exaFS: 172.25.80.50@tcp:172.25.80.51@tcp:172.25.80.52@tcp:172.25.80.53@tcp:/sfa18k03/ds
+  mountPoint: /exaFS
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vm-space
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: exa-block-pvc
+  namespace: vm-space
+spec:
+  storageClassName: kubevirt-sc-block
+  volumeMode: Block
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 50Gi
+---
+
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  labels:
+    capk.cluster.x-k8s.io/kubevirt-machine-name: vm-kubevirt-ubuntu-24-block-vm
+    capk.cluster.x-k8s.io/kubevirt-machine-namespace: vm-space
+    kubevirt.io/vm: vm-kubevirt-ubuntu-24-block-vm
+    name: vm-kubevirt-ubuntu-24-block-vm
+  name: vm-kubevirt-ubuntu-24-block-vm
+  namespace: vm-space  
+spec:
+  dataVolumeTemplates:
+  - metadata:
+      name: vm-kubevirt-ubuntu-24-block-dv
+      namespace: vm-space
+    spec:
+      pvc:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi
+        storageClassName: local-path
+        volumeMode: Filesystem
+      source:
+        registry:
+          url: docker://quay.io/containerdisks/ubuntu:24.04
+  runStrategy: Manual
+  template:    
+    spec:
+      domain:
+        cpu:
+          cores: 4
+          model: host-passthrough
+          sockets: 1
+          threads: 1
+        devices:
+          autoattachGraphicsDevice: false
+          autoattachMemBalloon: false
+          autoattachSerialConsole: true
+          blockMultiQueue: true
+          disks:
+          - dedicatedIOThread: false
+            disk:
+              bus: virtio
+            name: containervolume
+            bootOrder: 1
+          - disk:
+              bus: virtio
+            name: exa-block
+            bootOrder: 2
+          - disk:
+              bus: virtio
+            name: cloudinitvolume          
+          interfaces:
+          - bridge: {}
+            name: default
+            ports:
+            - name: ssh
+              port: 22
+              protocol: TCP            
+          rng: {}
+        firmware:
+          bootloader:
+            efi:
+              secureBoot: false
+        ioThreadsPolicy: shared
+        machine:
+          type: q35
+        memory:
+          guest: 8Gi
+        resources:
+          limits:
+            cpu: "8"            
+            ephemeral-storage: 5Gi
+            memory: 12Gi            
+          requests:
+            cpu: "3"            
+            memory: 10Gi            
+      evictionStrategy: External
+      networks:
+      - name: default
+        pod: {}            
+      volumes:
+      - name: containervolume
+        persistentVolumeClaim:
+          claimName: vm-kubevirt-ubuntu-24-block-dv
+      - cloudInitNoCloud:
+          userData: |
+            #cloud-config
+            users:
+              - name: ubuntu
+                sudo: ALL=(ALL) NOPASSWD:ALL
+                shell: /bin/bash
+                passwd: "$6$ud79cjYHUNLFvtI6$DEDpdCYPtm34DpviBfYdMqCqyqewUrfkju/dJrf22Sqkl5/TZXWyaPOuQdUdm66CTVpLi8y5e8b1KS5wlsNM6."
+                lock_passwd: false
+            ssh_pwauth: true
+        name: cloudinitvolume
+      - name: exa-block
+        persistentVolumeClaim:
+          claimName: exa-block-pvc
+
+# Note: vm password: ubuntu 

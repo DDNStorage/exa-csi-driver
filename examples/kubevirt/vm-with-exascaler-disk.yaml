@@ -1,0 +1,112 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: exascaler-csi-kubevirt-sc
+provisioner: exa.csi.ddn.com
+allowVolumeExpansion: true
+parameters:
+  exaFS: 172.25.80.50@tcp:172.25.80.51@tcp:172.25.80.52@tcp:172.25.80.53@tcp:/sfa18k03/vm
+  mountPoint: /exaFS
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vm-space
+---
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  labels:
+    capk.cluster.x-k8s.io/kubevirt-machine-name: vm-kubevirt-ubuntu-24-exascaler-vm
+    capk.cluster.x-k8s.io/kubevirt-machine-namespace: vm-space
+    kubevirt.io/vm: vm-kubevirt-ubuntu-24-exascaler-vm
+    name: vm-kubevirt-ubuntu-24-exascaler-vm
+  name: vm-kubevirt-ubuntu-24-exascaler-vm
+  namespace: vm-space  
+spec:
+  dataVolumeTemplates:
+  - metadata:
+      name: vm-kubevirt-ubuntu-24-exascaler-dv
+      namespace: vm-space
+    spec:
+      pvc:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi
+        storageClassName: exascaler-csi-kubevirt-sc
+        volumeMode: Filesystem
+      source:
+        registry:
+          url: docker://quay.io/containerdisks/ubuntu:24.04
+  runStrategy: Manual
+  template:    
+    spec:
+      domain:
+        cpu:
+          cores: 4
+          model: host-passthrough
+          sockets: 1
+          threads: 1
+        devices:
+          autoattachGraphicsDevice: false
+          autoattachMemBalloon: false
+          autoattachSerialConsole: true
+          blockMultiQueue: true
+          disks:
+          - dedicatedIOThread: false
+            disk:
+              bus: virtio
+            name: containervolume
+          - disk:
+              bus: virtio
+            name: cloudinitvolume          
+          interfaces:
+          - bridge: {}
+            name: default
+            ports:
+            - name: ssh
+              port: 22
+              protocol: TCP            
+          rng: {}
+        firmware:
+          bootloader:
+            efi:
+              secureBoot: false
+        ioThreadsPolicy: shared
+        machine:
+          type: q35
+        memory:
+          guest: 8Gi
+        resources:
+          limits:
+            cpu: "8"            
+            ephemeral-storage: 5Gi
+            memory: 12Gi            
+          requests:
+            cpu: "3"            
+            memory: 10Gi            
+      evictionStrategy: External
+      networks:
+      - name: default
+        pod: {}            
+      volumes:
+      - name: containervolume
+        persistentVolumeClaim:
+          claimName: vm-kubevirt-ubuntu-24-exascaler-dv
+      - cloudInitConfigDrive:
+          userData: |
+            #cloud-config
+            users:
+              - name: ubuntu
+                sudo: ALL=(ALL) NOPASSWD:ALL
+                shell: /bin/bash
+                passwd: "$6$ud79cjYHUNLFvtI6$DEDpdCYPtm34DpviBfYdMqCqyqewUrfkju/dJrf22Sqkl5/TZXWyaPOuQdUdm66CTVpLi8y5e8b1KS5wlsNM6."
+                lock_passwd: false
+            ssh_pwauth: true
+        name: cloudinitvolume
+
+
+#Note: vm password: ubuntu

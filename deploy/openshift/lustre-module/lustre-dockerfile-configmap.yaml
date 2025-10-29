@@ -4,13 +4,18 @@ metadata:
   name: lustre-ci-dockerfile
 data:
   dockerfile: |
-      ARG DTK_AUTO
-      FROM ${DTK_AUTO} as builder
+      FROM image-registry.openshift-image-registry.svc:5000/openshift-kmm/builder-base:latest
       ARG KERNEL_VERSION
       WORKDIR /build/
       ENV SMDEV_CONTAINER_OFF=1
-      RUN git clone -b ${KERNEL_VERSION} https://github.com/Qeas/rpms.git # change this to your repo with matching rpms
-      RUN yum -y install rpms/*.rpm
+
+      RUN cd /source \
+      && tar -xvf lustre-client.tar.gz \
+      && rm lustre-client.tar.gz \
+      && cd lustre-* \
+      && ./configure --with-linux=/usr/src/kernels/$(uname -r) --disable-server \
+      && make rpms \
+      && dnf -y install lustre-client-[0-9]*.rpm kmod-lustre-client-[0-9]*.rpm lustre-iokit-[0-9]*.rpm
       RUN mkdir -p /opt/lib && \
           cp -r /lib/modules /opt/lib/modules
       RUN depmod -b /opt
