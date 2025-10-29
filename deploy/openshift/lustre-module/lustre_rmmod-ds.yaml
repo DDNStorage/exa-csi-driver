@@ -1,0 +1,44 @@
+# =====================================================================
+# Lustre cleanup DaemonSet
+# =====================================================================
+# WARNING: This DaemonSet will unmount all Lustre file systems and
+# unload all Lustre-related kernel modules (including LNet) 
+# on every node where it runs.
+#
+# Use only for cleanup or recovery purposes.
+# =====================================================================
+
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: lustre-rmmod
+spec:
+  selector:
+    matchLabels:
+      name: lustre-rmmod
+  template:
+    metadata:
+      labels:
+        name: lustre-rmmod
+    spec:
+      nodeSelector:
+        kmm.node.kubernetes.io/openshift-kmm.lnet.ready: ""
+      hostNetwork: true
+      serviceAccountName: kmm-operator-module-loader
+      containers:
+      - name: lustre-rmmod
+        image: image-registry.openshift-image-registry.svc:5000/openshift-kmm/lustre-client-moduleloader:5.14.0-570.29.1.el9_6.x86_64
+        command:
+        - /bin/bash
+        - -c
+        - |
+          umount -a -t lustre
+          lustre_rmmod
+          echo "Lustre modules removed, sleeping forever..."
+          sleep infinity
+        securityContext:
+          privileged: true
+          runAsUser: 0
+          allowPrivilegeEscalation: true
+          seLinuxOptions:
+            type: spc_t

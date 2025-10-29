@@ -1,0 +1,67 @@
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: lnet-configuration
+spec:
+  selector:
+    matchLabels:
+      name: lnet-configuration
+  template:
+    metadata:
+      labels:
+        name: lnet-configuration
+    spec:
+      nodeSelector:
+        kmm.node.kubernetes.io/openshift-kmm.lnet.ready: 
+      hostNetwork: true
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
+      serviceAccount: kmm-operator-module-loader
+      serviceAccountName: kmm-operator-module-loader
+      containers:
+      - name: lnet-configuration
+        image: "image-registry.openshift-image-registry.svc:5000/openshift-kmm/lustre-client-moduleloader:5.14.0-570.29.1.el9_6.x86_64"
+        imagePullPolicy: IfNotPresent
+        command:
+          - /bin/sh
+          - -c
+          - |
+            trap "sleep 10" TERM
+            while true; do sleep 5; done
+        env:
+          - name: NET_TYPE
+            value: "tcp"
+          - name: NET_IFACE
+            value: "br-ex"
+        lifecycle:
+          postStart:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  echo "Configuring LNet: net=${NET_TYPE}, iface=${NET_IFACE}"
+                  lnetctl lnet configure
+                  lnetctl net add --net "${NET_TYPE}" --if "${NET_IFACE}"
+                  modprobe lustre
+                  modprobe mgc
+          preStop:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  echo "Unmounting and cleaning up Lustre"
+                  umount -a -t lustre || true
+                  lustre_rmmod || true
+        securityContext:
+          allowPrivilegeEscalation: true
+          privileged: true
+          runAsUser: 0
+          seLinuxOptions:
+            type: spc_t
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
