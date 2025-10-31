@@ -47,69 +47,54 @@ oc patch configs.imageregistry.operator.openshift.io cluster --type merge --patc
 oc patch configs.imageregistry.operator.openshift.io/cluster --type merge -p '{"spec":{"defaultRoute":true}}'
 ```
 
-### Building lustre rpms
-You will need a vm with the kernel version matching that of the OpenShift nodes. To check on nodes:
+### Building lustre client
+Installing OpenShift Kernel Module Management (KMM) operator is a required prerequisite.
+
+Building lustre client modules requires entitled build process.
+Prepare pki keys for the builder
 ```bash
-oc get nodes
-oc debug node/c1-pk6k4-worker-0-2j6w8
-uname -r
+oc get secret etc-pki-entitlement -n openshift-config-managed -o json   | jq -r '.data["entitlement.pem"]' | base64 -d > deploy/openshift/lustre-module/entitlement.pem
+oc get secret etc-pki-entitlement -n openshift-config-managed -o json   | jq -r '.data["entitlement-key.pem"]' | base64 -d > deploy/openshift/lustre-module/entitlement-key.pem
 ```
 
-On the builder vm, install the matching kernel and log in to it, example for Rhel 9.2:
+Put the lustre client source in `deploy/openshift/lustre-module/`
 ```bash
-# login to subscription-manager
-subscription-manager register --username <username> --password <password> --auto-attach
-# list available kernels
-yum --showduplicates list available kernel
-yum install kernel-<version>-<revision>.<arch>  # e.g.: yum install kernel-5.14.0-284.25.1.el9_2.x86_64
-grubby --info=ALL | grep title
-title="Red Hat Enterprise Linux (5.14.0-284.11.1.el9_2.x86_64) 9.2 (Plow)"                <---- 0
-title="Red Hat Enterprise Linux (5.14.0-284.25.1.el9_2.x86_64) 9.2 (Plow)"                <---- 1
-
-grub2-set-default 1
-reboot
+cp lustre-2.14.0_ddn214.tar.gz deploy/openshift/lustre-module/lustre-client.tar.gz
 ```
 
-Copy EXAScaler client tar from the EXAScaler server:
+Create and start a build
 ```bash
-scp root@<exa-server-ip>:/scratch/EXAScaler-<version>/exa-client-<version>.tar.gz .
-tar -xvf exa-client-<version>.tar.gz
-cd exa-client
-./exa_client_deploy.py -i
+oc new-build --binary --name=builder-base
+oc start-build builder-base --from-dir=deploy/openshift/lustre-module/ --follow
 ```
+This will create a base image with all dependencies.
 
-This will build the rpms and install the client.
-Upload the rpms to any repository available from the cluster and change deploy/openshift/lustre-module/lustre-dockerfile-configmap.yaml lines 12-13 accordingly.
-Make sure that `kmod-lustre-client-*.rpm`, `lustre-client-*.rpm` and `lustre-client-devel-*.rpm` packages are present.
-  ```
-  RUN git clone https://github.com/Qeas/rpms.git # change this to your repo with matching rpms
-  RUN yum -y install rpms/*.rpm
-  ```
-
-### Loading lustre modules in OpenShift
-
-Before loading the lustre modules, make sure to install OpenShift Kernel Module Management (KMM) via OpenShift console.
+Next, create a config map and trigger the image build by loading the lnet module.
+Note that `deploy/openshift/lustre-module/lustre-dockerfile-configmap.yaml` uses default internal image registry. Change line 7 to point to a correct image registry.
 
 ```bash
 oc create -n openshift-kmm -f deploy/openshift/lustre-module/lustre-dockerfile-configmap.yaml
 oc apply -n openshift-kmm -f deploy/openshift/lustre-module/lnet-mod.yaml
 ```
-Wait for the builder pod (e.g. `lnet-build-5f265-build`) to finish. After builder finishes,
-you should have `lnet-8b72w-6fjwh` running on each worker node.
+Wait for the builder pod (e.g. `lnet-build-5f265-build`) to finish.
+Run ko2iblnd-mod if you are using Infiniband network
 ```bash
-# run ko2iblnd-mod if you are using Infiniband network
 oc apply -n openshift-kmm -f deploy/openshift/lustre-module/ko2iblnd-mod.yaml
 ```
 
-Make changes to `deploy/openshift/lustre-module/lnet-configuration-ds.yaml` line 38 according to the cluster's network
-```
-lnetctl net add --net tcp --if br-ex # change interface according to your cluster
+Make changes to the environment variables in deploy/openshift/lustre-module/lnet-lustre-configuration-ds.yaml (lines 34–37) according to your cluster’s network.
+```bash
+        env:
+          - name: NET_TYPE
+            value: "tcp"    <--- tcp or o2ib
+          - name: NET_IFACE
+            value: "br-ex"  <--- interface name
 ```
 Configure lnet and install lustre
+```bash
+oc apply -n openshift-kmm -f deploy/openshift/lustre-module/lnet-lustre-configuration-ds.yaml
 ```
-oc apply -n openshift-kmm -f deploy/openshift/lustre-module/lnet-configuration-ds.yaml
-oc apply -n openshift-kmm -f deploy/openshift/lustre-module/lustre-mod.yaml
-```
+Note that this Daemonset should keep running in the cluster. Deleting it will unmount and uninstall lustre on all nodes.
 
 ### Installing the driver
 
@@ -123,17 +108,22 @@ oc apply -n openshift-kmm -f deploy/openshift/exascaler-csi-file-driver.yaml
 
 ### Uninstall
 
+Uninstall the driver and delete secret
 ```bash
 oc delete -n openshift-kmm secret exascaler-csi-file-driver-config
 oc delete -n openshift-kmm -f deploy/openshift/exascaler-csi-file-driver.yaml
-oc delete -n openshift-kmm -f deploy/openshift/lustre-module/lustre-mod.yaml
-oc delete -n openshift-kmm -f deploy/openshift/lustre-module/lnet-configuration-ds.yaml
-oc delete -n openshift-kmm -f deploy/openshift/lustre-module/ko2iblnd-mod.yaml
-oc delete -n openshift-kmm -f deploy/openshift/lustre-module/lnet-mod.yaml
-oc delete -n openshift-kmm -f deploy/openshift/lustre-module/lustre-dockerfile-configmap.yaml
-oc get images | grep lustre-client-moduleloader | awk '{print $1}' | xargs oc delete image
 ```
 
+Remove all lustre modules
+```bash
+oc delete -n openshift-kmm -f deploy/openshift/lustre-module/lnet-lustre-configuration-ds.yaml
+oc delete module ko2iblnd lnet
+```
+
+Delete lustre images
+```bash
+oc get images | grep lustre | awk '{print $1}' | xargs oc delete image
+```
 
 ### Snapshots
 To use CSI snapshots, the snapshot CRDs along with the csi-snapshotter must be installed.
@@ -494,6 +484,8 @@ Then a quota can be set for that project
 lfs setquota -p 1000001 -B 2G /mountPoint-csi/
 ```
 
+Static volumes can be automatically created by the driver if `createStaticDir` = `"true"` is passed in `volumeAttributes` of the `PersistentVolume` definition. This only works for `volumeMode`: `File`, will not auto create for `volumeMode`: `Block`.
+
 #### _StorageClass_ configuration
 
 ```yaml
@@ -624,6 +616,7 @@ If a parameter is available for both config and storage class, storage class par
 | - | `compression` | Algorithm ["lz4", "gzip", "lzo"] to use for data compression. default is "false". Compression cannot be used with encryption enabled. | `false` | 
 | - | `snapshotCompression` | Defines whether compression should be used when creating snapshots. Only usable with `tar`, not supported with `dtar`. Do not use if creation speed is more important than space. Default is "false". | `false` |
 | - | `configName` | Config entry name to use from the config map | `exa1` |
+| - | `createStaticDir` | Set to `true` for the driver to automatically create volume directory for static provisioned volumes if it does not exist. Should be passed in `volumeAttributes` in `PersistentVolume` definition. | `false` |
 
 #### _PersistentVolumeClaim_ (pointing to created _PersistentVolume_)
 
@@ -1025,6 +1018,125 @@ parameters:
   exaParams: "osc.*.checksums=0 ldlm.namespaces.*.lru_max_age=5000000"
 ```
 These parameters should always be passed with `*` wildcard, which will be substituted for the actual PVC mountpoint by the driver. Multiple parameters should be passed with a space dilimiter.
+
+### Using with Kubevirt
+
+Create Storage class
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: exascaler-csi-kubevirt-sc
+provisioner: exa.csi.ddn.com
+allowVolumeExpansion: true
+parameters:
+  exaFS: 172.25.80.50@tcp:172.25.80.51@tcp:172.25.80.52@tcp:172.25.80.53@tcp:/sfa18k03/vm
+  mountPoint: /exaFS
+```
+
+This virtual machine definition have data volume template that will create a PVC using ExaScaler CSI driver.
+```yaml
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  labels:
+    capk.cluster.x-k8s.io/kubevirt-machine-name: vm-kubevirt-ubuntu-24-exascaler-vm
+    capk.cluster.x-k8s.io/kubevirt-machine-namespace: vm-space
+    kubevirt.io/vm: vm-kubevirt-ubuntu-24-exascaler-vm
+    name: vm-kubevirt-ubuntu-24-exascaler-vm
+  name: vm-kubevirt-ubuntu-24-exascaler-vm
+  namespace: vm-space  
+spec:
+  dataVolumeTemplates:
+  - metadata:
+      name: vm-kubevirt-ubuntu-24-exascaler-dv
+      namespace: vm-space
+    spec:
+      pvc:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi
+        storageClassName: ddn-fs-small
+        volumeMode: Filesystem
+      source:
+        registry:
+          url: docker://quay.io/containerdisks/ubuntu:24.04
+  runStrategy: Manual
+  template:    
+    spec:
+      domain:
+        cpu:
+          cores: 4
+          model: host-passthrough
+          sockets: 1
+          threads: 1
+        devices:
+          autoattachGraphicsDevice: false
+          autoattachMemBalloon: false
+          autoattachSerialConsole: true
+          blockMultiQueue: true
+          disks:
+          - dedicatedIOThread: false
+            disk:
+              bus: virtio
+            name: containervolume
+          - disk:
+              bus: virtio
+            name: cloudinitvolume          
+          interfaces:
+          - bridge: {}
+            name: default
+            ports:
+            - name: ssh
+              port: 22
+              protocol: TCP            
+          rng: {}
+        firmware:
+          bootloader:
+            efi:
+              secureBoot: false
+        ioThreadsPolicy: shared
+        machine:
+          type: q35
+        memory:
+          guest: 8Gi
+        resources:
+          limits:
+            cpu: "8"            
+            ephemeral-storage: 5Gi
+            memory: 12Gi            
+          requests:
+            cpu: "3"            
+            memory: 10Gi            
+      evictionStrategy: External
+      networks:
+      - name: default
+        pod: {}            
+      volumes:
+      - name: containervolume
+        persistentVolumeClaim:
+          claimName: vm-kubevirt-ubuntu-24-exascaler-dv
+      - cloudInitConfigDrive:
+          userData: |
+            #cloud-config
+            users:
+              - name: ubuntu
+                sudo: ALL=(ALL) NOPASSWD:ALL
+                shell: /bin/bash
+                passwd: "$6$ud79cjYHUNLFvtI6$DEDpdCYPtm34DpviBfYdMqCqyqewUrfkju/dJrf22Sqkl5/TZXWyaPOuQdUdm66CTVpLi8y5e8b1KS5wlsNM6."
+                lock_passwd: false
+            ssh_pwauth: true
+        name: cloudinitvolume
+```
+> **Note**: Ubuntu 24.04 is used as the base image for the VM. Password for the `ubuntu` user is `ubuntu`, that is provided as sha512 hash. 
+
+VM created will be in stopped state. You can start the VM using `virtctl`.
+```bash
+virtctl start vm-kubevirt-ubuntu-24-exascaler-vm -n vm-space
+```
+
 
 ## Updating the driver version
 To update to a new driver version, you need to follow the following steps:

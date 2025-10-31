@@ -81,10 +81,10 @@ rules:
     verbs: ['get', 'list', 'watch', 'update']
   - apiGroups: ["snapshot.storage.k8s.io"]
     resources: ["volumesnapshots/status"]
-    verbs: ["update"]
+    verbs: ["update", "patch"]
   - apiGroups: ["snapshot.storage.k8s.io"]
     resources: ["volumesnapshotcontents/status"]
-    verbs: ["update"]
+    verbs: ["update", "patch"]
   - apiGroups: ['apiextensions.k8s.io']
     resources: ['customresourcedefinitions']
     verbs: ['create', 'list', 'watch', 'delete']
@@ -219,7 +219,7 @@ spec:
         # csi-provisioner: sidecar container that watches Kubernetes PersistentVolumeClaim objects
         # and triggers CreateVolume/DeleteVolume against a CSI endpoint
         - name: csi-provisioner
-          image: k8s.gcr.io/sig-storage/csi-provisioner:v3.0.0
+          image: k8s.gcr.io/sig-storage/csi-provisioner:v5.3.0
           imagePullPolicy: IfNotPresent
           args:
             - --csi-address=/var/lib/csi/sockets/pluginproxy/csi.sock
@@ -233,7 +233,7 @@ spec:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy
         - name: csi-attacher
-          image: k8s.gcr.io/sig-storage/csi-attacher:v3.5.0
+          image: k8s.gcr.io/sig-storage/csi-attacher:v4.10.0
           imagePullPolicy: IfNotPresent
           args:
             - --csi-address=$(ADDRESS)
@@ -246,7 +246,7 @@ spec:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
         - name: csi-snapshotter
-          image: registry.k8s.io/sig-storage/csi-snapshotter:v6.3.2
+          image: registry.k8s.io/sig-storage/csi-snapshotter:v8.3.0
           imagePullPolicy: IfNotPresent
           args:
             - -v=3
@@ -256,7 +256,7 @@ spec:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy
         - name: csi-resizer
-          image: k8s.gcr.io/sig-storage/csi-resizer:v1.4.0
+          image: k8s.gcr.io/sig-storage/csi-resizer:v1.14.0
           args:
             - "--csi-address=$(ADDRESS)"
           env:
@@ -272,7 +272,7 @@ spec:
             capabilities:
               add: ['SYS_ADMIN']
             allowPrivilegeEscalation: true
-          image: quay.io/ddn/exascaler-csi-file-driver:v2.5.0
+          image: quay.io/ddn/exascaler-csi-file-driver:v2.5.1
           imagePullPolicy: Always
           args:
             - --nodeid=$(KUBE_NODE_NAME)
@@ -374,7 +374,7 @@ spec:
         # 1) registers the CSI driver with kubelet
         # 2) adds the drivers custom NodeId to a label on the Kubernetes Node API Object
         - name: driver-registrar
-          image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.9.0
+          image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.15.0
           imagePullPolicy: IfNotPresent
           args:
             - --v=5
@@ -404,7 +404,7 @@ spec:
             capabilities:
               add: ['SYS_ADMIN']
             allowPrivilegeEscalation: true
-          image: quay.io/ddn/exascaler-csi-file-driver:v2.5.0
+          image: quay.io/ddn/exascaler-csi-file-driver:v2.5.1
           imagePullPolicy: Always
           args:
             - --nodeid=$(KUBE_NODE_NAME)
