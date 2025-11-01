@@ -37,6 +37,7 @@ Releases can be found here - https://github.com/DDNStorage/exa-csi-driver/releas
 |v4.13|>=v2.2.3|>=v6.3.0|
 |v4.14|>=v2.2.4|>=v6.3.0|
 |v4.15|>=v2.2.4|>=v6.3.0|
+|v4.19|>=v2.5.1|>=v6.3.5|
 
 ## OpenShift
 ### Prerequisites
