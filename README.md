@@ -10,18 +10,18 @@ Releases can be found here - https://github.com/DDNStorage/exa-csi-driver/releas
 ## Feature List
 |Feature|Feature Status|CSI Driver Version|CSI Spec Version|Kubernetes Version|Openshift Version|Arm64 support|
 |--- |--- |--- |--- |--- |--- |--- |
-|Static Provisioning|GA|>= 1.0.0|>= 1.0.0|>=1.18|>=4.13|>=2.5.0|
-|Dynamic Provisioning|GA|>= 1.0.0|>= 1.0.0|>=1.18|>=4.13|>=2.5.0|
-|RW mode|GA|>= 1.0.0|>= 1.0.0|>=1.18|>=4.13|>=2.5.0|
-|RO mode|GA|>= 1.0.0|>= 1.0.0|>=1.18|>=4.13|>=2.5.0|
-|Expand volume|GA|>= 1.0.0|>= 1.1.0|>=1.18|>=4.13|>=2.5.0|
-|StorageClass Secrets|GA|>= 1.0.0|>=1.0.0|>=1.18|>=4.13|>=2.5.0|
-|Mount options|GA|>= 1.0.0|>= 1.0.0|>=1.18|>=4.13|>=2.5.0|
-|Topology|GA|>= 2.0.0|>= 1.0.0|>=1.17|>=4.13|>=2.5.0|
-|Snapshots|GA|>= 2.2.6|>= 1.0.0|>=1.17|>=4.13|>=2.5.0|
+|Static Provisioning|GA|>= 1.0.0|>= 1.0.0|>=1.18|>=4.13|>=2.6.0|
+|Dynamic Provisioning|GA|>= 1.0.0|>= 1.0.0|>=1.18|>=4.13|>=2.6.0|
+|RW mode|GA|>= 1.0.0|>= 1.0.0|>=1.18|>=4.13|>=2.6.0|
+|RO mode|GA|>= 1.0.0|>= 1.0.0|>=1.18|>=4.13|>=2.6.0|
+|Expand volume|GA|>= 1.0.0|>= 1.1.0|>=1.18|>=4.13|>=2.6.0|
+|StorageClass Secrets|GA|>= 1.0.0|>=1.0.0|>=1.18|>=4.13|>=2.6.0|
+|Mount options|GA|>= 1.0.0|>= 1.0.0|>=1.18|>=4.13|>=2.6.0|
+|Topology|GA|>= 2.0.0|>= 1.0.0|>=1.17|>=4.13|>=2.6.0|
+|Snapshots|GA|>= 2.2.6|>= 1.0.0|>=1.17|>=4.13|>=2.6.0|
 |Exascaler Hot Nodes|GA|>= 2.3.0|>= 1.0.0|>=1.18| Not supported yet|Not supported yet|
-|Compression|GA|>= 2.3.5|>= 1.0.0|>=1.17|>=4.13|>=2.5.0|
-|Encryption|GA|>= 2.3.5|>= 1.0.0|>=1.17| Not supported yet|>=2.5.0|
+|Compression|GA|>= 2.3.5|>= 1.0.0|>=1.17|>=4.13|>=2.6.0|
+|Encryption|GA|>= 2.3.5|>= 1.0.0|>=1.17| Not supported yet|>=2.6.0|
 
 ## Access Modes support
 |Access mode| Supported in version|
@@ -37,7 +37,7 @@ Releases can be found here - https://github.com/DDNStorage/exa-csi-driver/releas
 |v4.13|>=v2.2.3|>=v6.3.0|
 |v4.14|>=v2.2.4|>=v6.3.0|
 |v4.15|>=v2.2.4|>=v6.3.0|
-|v4.19|>=v2.5.1|>=v6.3.5|
+|v4.19|>=v2.6.0|>=v6.3.5|
 
 ## OpenShift
 ### Prerequisites
