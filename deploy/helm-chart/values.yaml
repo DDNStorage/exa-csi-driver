@@ -6,7 +6,7 @@ volumeNamePrefix: "pvc-exa"
 
 image:
   repository: "quay.io/ddn/exascaler-csi-file-driver"
-  tag: v2.6.0
+  tag: v2.7.0
   pullPolicy: "Always"
   # Overrides the image tag whose default is the chart appVersion.
   resources:
@@ -34,6 +34,7 @@ resizer:
   repository: registry.k8s.io/sig-storage/csi-resizer
   tag: v1.14.0
   pullPolicy: IfNotPresent
+  timeout: 10m
   resources:
 
 csi_snapshotter:
@@ -78,7 +79,7 @@ metrics:
   enabled: false
   exporter:
     repository: quay.io/ddn/exa-csi-metrics-exporter
-    tag: v2.6.0
+    tag: v2.7.0
     pullPolicy: Always
     containerPort: "9200"
     servicePort: "32666"

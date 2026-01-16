@@ -17,7 +17,7 @@ spec:
       containers:
       - name: exporter
         imagePullPolicy: Always
-        image: quay.io/ddn/exa-csi-metrics-exporter:v2.6.0
+        image: quay.io/ddn/exa-csi-metrics-exporter:v2.7.0
         securityContext:
           privileged: true
           capabilities:
