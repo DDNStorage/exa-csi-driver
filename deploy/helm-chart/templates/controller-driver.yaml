@@ -283,7 +283,8 @@ spec:
           image: {{ .Values.resizer.repository }}:{{ .Values.resizer.tag }}
           imagePullPolicy: {{ .Values.resizer.pullPolicy }}
           args:
-            - "--csi-address=$(ADDRESS)"
+            - --csi-address=$(ADDRESS)
+            - --timeout={{ .Values.resizer.timeout }}
           env:
             - name: ADDRESS
               value: /var/lib/csi/sockets/pluginproxy/csi.sock

@@ -358,7 +358,8 @@ spec:
       - name: csi-resizer
         image: k8s.gcr.io/sig-storage/csi-resizer:v1.14.0
         args:
-          - "--csi-address=$(ADDRESS)"
+          - --csi-address=$(ADDRESS)
+          - --timeout=10m
         env:
           - name: ADDRESS
             value: /csi/csi.sock
@@ -366,7 +367,7 @@ spec:
         volumeMounts:
           - name: socket-dir
             mountPath: /csi/
-      - image: quay.io/ddn/exascaler-openshift-file-driver:v2.6.0
+      - image: quay.io/ddn/exascaler-openshift-file-driver:v2.7.0
         imagePullPolicy: Always
         args:
           - --nodeid=$(KUBE_NODE_NAME)
@@ -458,7 +459,7 @@ spec:
           securityContext:
             privileged: true
             allowPrivilegeEscalation: true
-          image: quay.io/ddn/exascaler-openshift-file-driver:v2.6.0
+          image: quay.io/ddn/exascaler-openshift-file-driver:v2.7.0
           imagePullPolicy: Always
           args:
             - --nodeid=$(KUBE_NODE_NAME)
