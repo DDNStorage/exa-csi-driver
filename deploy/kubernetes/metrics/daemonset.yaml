@@ -17,7 +17,7 @@ spec:
       containers:
       - name: exporter
         imagePullPolicy: Always
-        image: quay.io/ddn/exa-csi-metrics-exporter:v2.7.0
+        image: quay.io/ddn/exa-csi-metrics-exporter:v2.8.1
         securityContext:
           privileged: true
           capabilities:
@@ -53,17 +53,10 @@ spec:
         - name: ca-certificates
           mountPath: /var/run/secrets/kubernetes.io/serviceaccount
           readOnly: true
-        - name: host
-          mountPath: /host
-          mountPropagation: Bidirectional
       volumes:
       - name: secret
         secret:
           secretName: exascaler-csi-file-driver-config
-      - name: host
-        hostPath:
-          path: /
-          type: Directory
       - name: ca-certificates
         projected:
           sources:

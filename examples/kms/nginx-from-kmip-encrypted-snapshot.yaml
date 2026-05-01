@@ -1,0 +1,75 @@
+# --------------------------------------
+# Exascaler CSI Driver - Storage Class
+# --------------------------------------
+
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: exascaler-csi-file-driver-sc-kmip
+provisioner: exa.csi.ddn.com
+allowVolumeExpansion: true
+parameters:
+  csi.storage.k8s.io/provisioner-secret-name: exa-csi-kmip-secret-with-endpoint
+  csi.storage.k8s.io/provisioner-secret-namespace: default
+  csi.storage.k8s.io/node-stage-secret-name: exa-csi-kmip-secret-with-endpoint
+  csi.storage.k8s.io/node-stage-secret-namespace: default
+  csi.storage.k8s.io/controller-expand-secret-name: exa-csi-kmip-secret-with-endpoint
+  csi.storage.k8s.io/controller-expand-secret-namespace: default
+  encryption: "true"
+  kms.provider: "kmip"
+  exaFS: 10.204.86.114@tcp:/testfs/clone-from-kmip
+  mountPoint: /encrypted_kmip
+  exaMountUid: "1001"           # Uid which will be used to access the volume in pod. Should be synced between EXA server and clients.
+  exaMountGid: "1001"
+---
+
+# ------------------------------------------------
+# Exaxscaler CSI Driver - Persistent Volume Claim
+# ------------------------------------------------
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: exascaler-csi-file-driver-pvc-kmip-clone
+spec:
+  storageClassName: exascaler-csi-file-driver-sc-kmip
+  dataSource:
+    kind: VolumeSnapshot
+    apiGroup: snapshot.storage.k8s.io
+    name: snapshot-from-encrypted-kmip # snapshots created by snapshots-from-dynamic-volume-kmip.yaml
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 3Gi
+---
+
+# ---------
+# Nginx pod
+# ---------
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-dynamic-kmip-encrypted-volume-from-snapshot
+spec:
+  securityContext:
+    runAsUser: 1001
+  containers:
+    - image: nginxinc/nginx-unprivileged
+      imagePullPolicy: IfNotPresent
+      name: nginx
+      command: [ "/bin/bash", "-c", "--" ]
+      args: [ "while true; do echo $(date) > /data/timefile; sleep 5; sync; done;" ]
+      ports:
+        - containerPort: 80
+          protocol: TCP
+      volumeMounts:
+        - mountPath: /data
+          name: exascaler-csi-file-driver-data
+  volumes:
+    - name: exascaler-csi-file-driver-data
+      persistentVolumeClaim:
+        claimName: exascaler-csi-file-driver-pvc-kmip-clone
+        readOnly: false
+

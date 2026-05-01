@@ -6,55 +6,62 @@ volumeNamePrefix: "pvc-exa"
 
 image:
   repository: "quay.io/ddn/exascaler-csi-file-driver"
-  tag: v2.7.0
+  tag: v2.8.1
   pullPolicy: "Always"
   # Overrides the image tag whose default is the chart appVersion.
   resources:
 
 registrar:
   repository: registry.k8s.io/sig-storage/csi-node-driver-registrar
-  tag: v2.15.0
+  tag: v2.16.0
   pullPolicy: IfNotPresent
   resources:
 
 provisioner:
   repository: registry.k8s.io/sig-storage/csi-provisioner
-  tag: v5.3.0
+  tag: v6.2.0
   pullPolicy: IfNotPresent
   timeout: 120m
   resources:
 
 attacher:
   repository: registry.k8s.io/sig-storage/csi-attacher
-  tag: v4.10.0
+  tag: v4.11.0
   pullPolicy: IfNotPresent
   resources:
 
 resizer:
   repository: registry.k8s.io/sig-storage/csi-resizer
-  tag: v1.14.0
+  tag: v2.1.0
   pullPolicy: IfNotPresent
   timeout: 10m
   resources:
 
 csi_snapshotter:
   repository: registry.k8s.io/sig-storage/csi-snapshotter
-  tag: v8.3.0
+  tag: v8.5.0
   pullPolicy: IfNotPresent
   timeout: 120m
   resources:
 
 resources:
   limits:
-    cpu: 8
-    memory: 512Mi
+    cpu: 16
+    memory: 1Gi
   requests:
-    cpu: 2
-    memory: 256Mi
+    cpu: 4
+    memory: 512Mi
 
 priorityClassName: system-cluster-critical
-
 secretName: exascaler-csi-file-driver-config
+
+controller:
+  nodeSelector: {}
+  tolerations: []
+
+node:
+  nodeSelector: {}
+  tolerations: []
 
 # exascaler driver specific config
 config:
@@ -79,7 +86,7 @@ metrics:
   enabled: false
   exporter:
     repository: quay.io/ddn/exa-csi-metrics-exporter
-    tag: v2.7.0
+    tag: v2.8.1
     pullPolicy: Always
     containerPort: "9200"
     servicePort: "32666"

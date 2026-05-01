@@ -13,7 +13,7 @@ parameters:
   csi.storage.k8s.io/controller-expand-secret-namespace: default
   encryption: "true"
   kms.provider: "kmip"
-  exaFS: 10.204.86.113@tcp:/testfs/functional-test-2
+  exaFS: 10.204.86.114@tcp:/testfs/functional-test-2
   mountPoint: /mnt1
   exaMountUid: "1001"
   exaMountGid: "1001"

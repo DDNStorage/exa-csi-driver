@@ -1,0 +1,125 @@
+---
+# Image version - update this single line to change the image for both containers
+x-image: &lustre-image "image-registry.openshift-image-registry.svc:5000/openshift-kmm/lustre-client-moduleloader:mofed25.10-v1"
+
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: lnet-configuration
+spec:
+  selector:
+    matchLabels:
+      name: lnet-configuration
+  template:
+    metadata:
+      labels:
+        name: lnet-configuration
+      # Note: IP configuration on InfiniBand interfaces must be done
+      # by the customer before deploying this DaemonSet (see README-MOFED.md)
+    spec:
+      nodeSelector:
+        kmm.node.kubernetes.io/openshift-kmm.lnet.ready:
+      hostNetwork: true
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
+      serviceAccount: kmm-operator-module-loader
+      serviceAccountName: kmm-operator-module-loader
+      initContainers:
+      - name: configure-lnet
+        image: *lustre-image
+        command:
+          - /bin/sh
+          - -c
+          - |
+            set -e
+            echo "Configuring LNet: net=${NET_TYPE}, iface=${NET_IFACE}"
+
+            # Configure LNet if not already configured
+            lnetctl lnet configure 2>/dev/null || echo "LNet already configured"
+
+            # Add network if not already added
+            if lnetctl net show 2>/dev/null | grep -q "${NET_TYPE}"; then
+              echo "Network ${NET_TYPE} already configured"
+            else
+              lnetctl net add --net "${NET_TYPE}0" --if "${NET_IFACE}"
+              echo "Network ${NET_TYPE}0 added successfully"
+            fi
+
+            echo "Loading Lustre modules..."
+
+            # Update module dependencies
+            KERNEL_VERSION=$(uname -r)
+            echo "Running depmod for kernel ${KERNEL_VERSION}..."
+            depmod -a
+
+            set +e  # Don't exit on error for module loading
+            modprobe lustre
+            if [ $? -ne 0 ]; then
+              echo "WARNING: modprobe lustre failed"
+              echo "Checking module location:"
+              find /lib/modules/${KERNEL_VERSION} -name "lustre.ko"
+              echo "Trying direct insmod..."
+              insmod /lib/modules/${KERNEL_VERSION}/extra/lustre.ko || echo "ERROR: Could not load lustre module"
+            else
+              echo "Lustre module loaded successfully"
+            fi
+
+            modprobe mgc
+            if [ $? -ne 0 ]; then
+              echo "WARNING: modprobe mgc failed"
+              echo "Checking module location:"
+              find /lib/modules/${KERNEL_VERSION} -name "mgc.ko"
+              echo "Trying direct insmod..."
+              insmod /lib/modules/${KERNEL_VERSION}/extra/mgc.ko || echo "ERROR: Could not load mgc module"
+            else
+              echo "MGC module loaded successfully"
+            fi
+            set -e
+
+            echo "Loaded modules:"
+            lsmod | grep -E "lustre|mgc" || echo "Modules not visible in lsmod"
+
+            echo "=== LNet Status ==="
+            lnetctl net show
+            echo "=== Configuration Complete ==="
+        env:
+          - name: NET_TYPE
+            value: "o2ib"
+          - name: NET_IFACE
+            value: "ibs1f1"
+        securityContext:
+          allowPrivilegeEscalation: true
+          privileged: true
+          runAsUser: 0
+          seLinuxOptions:
+            type: spc_t
+      containers:
+      - name: lnet-configuration
+        image: *lustre-image
+        imagePullPolicy: Always
+        command:
+          - /bin/sh
+          - -c
+          - |
+            trap "sleep 10" TERM
+            while true; do sleep 5; done
+        lifecycle:
+          preStop:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  echo "Unmounting and cleaning up Lustre"
+                  umount -a -t lustre || true
+                  # lustre_rmmod || true
+        securityContext:
+          allowPrivilegeEscalation: true
+          privileged: true
+          runAsUser: 0
+          seLinuxOptions:
+            type: spc_t
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File

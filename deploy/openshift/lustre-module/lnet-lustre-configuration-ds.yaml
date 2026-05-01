@@ -23,7 +23,7 @@ spec:
       containers:
       - name: lnet-configuration
         image: "image-registry.openshift-image-registry.svc:5000/openshift-kmm/lustre-client-moduleloader:5.14.0-570.29.1.el9_6.x86_64"
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         command:
           - /bin/sh
           - -c

@@ -29,6 +29,7 @@ metadata:
     name: exascaler-csi-file-driver-pv-nginx-persistent
 spec:
   storageClassName: exascaler-csi-file-driver-sc-nginx-persistent
+  persistentVolumeReclaimPolicy: Retain
   accessModes:
     - ReadWriteMany
   capacity:

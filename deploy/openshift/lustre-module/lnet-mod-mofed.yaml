@@ -1,0 +1,37 @@
+apiVersion: kmm.sigs.x-k8s.io/v1beta1
+kind: Module
+metadata:
+  name: lnet
+spec:
+  moduleLoader:
+    container:
+      modprobe:
+        moduleName: lnet
+        dirName: /opt
+        modulesLoadingOrder:
+          - lnet
+          - ksocklnd
+        #   - ko2iblnd  # for Infiniband network
+
+      kernelMappings:  # At least one item is required
+        # For any other kernel, build the image using the Dockerfile in the my-kmod ConfigMap.
+        - regexp: '^.+$'
+          containerImage: "image-registry.openshift-image-registry.svc:5000/openshift-kmm/lustre-client-moduleloader:mofed25.10-v1"
+          build:
+            buildArgs:
+              - name: MOFED_VERSION
+                value: "25.10-1.2.8.0"
+              - name: DOCA_IMAGE_TAG
+                value: "doca3.2.0-25.10-1.2.8.0-2-rhel9.6-amd64"
+            baseImageRegistryTLS:
+              insecure: false
+              insecureSkipTLSVerify: false
+            dockerfileConfigMap:
+              name: lustre-ci-dockerfile-mofed
+          registryTLS:
+            insecure: false
+            insecureSkipTLSVerify: false
+
+  selector:
+    node-role.kubernetes.io/worker: ""
+

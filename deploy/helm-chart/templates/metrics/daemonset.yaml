@@ -54,17 +54,10 @@ spec:
         - name: ca-certificates
           mountPath: /var/run/secrets/kubernetes.io/serviceaccount
           readOnly: true
-        - name: host
-          mountPath: /host
-          mountPropagation: Bidirectional
       volumes:
       - name: secret
         secret:
           secretName: {{ .Values.secretName }}
-      - name: host
-        hostPath:
-          path: /
-          type: Directory
       - name: ca-certificates
         projected:
           sources:

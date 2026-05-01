@@ -65,6 +65,14 @@ spec:
       serviceAccount: exascaler-csi-node-service-account
       priorityClassName: {{ .Values.priorityClassName }}
       hostNetwork: true
+      {{- with .Values.node.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.node.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         # driver-registrar: sidecar container that:
         # 1) registers the CSI driver with kubelet
@@ -138,15 +146,14 @@ spec:
               mountPath: /csi
             - name: secret
               mountPath: /config
-            - name: host
-              mountPath: /host
-              mountPropagation: Bidirectional
             - name: pods-mount-dir
               mountPath: /var/lib/kubelet/pods
               mountPropagation: Bidirectional
             - name: plugin-dir
               mountPath: /var/lib/kubelet/plugins
               mountPropagation: Bidirectional
+            - mountPath: /dev
+              name: host-dev
       volumes:
         - name: socket-dir
           hostPath:
@@ -160,10 +167,6 @@ spec:
           hostPath:
             path: /var/lib/kubelet/pods
             type: Directory
-        - name: host
-          hostPath:
-            path: /
-            type: Directory
         - name: plugin-dir
           hostPath:
             path: /var/lib/kubelet/plugins
@@ -171,4 +174,8 @@ spec:
         - name: secret
           secret:
             secretName: {{ .Values.secretName }}
+        - name: host-dev
+          hostPath:
+            path: /dev
+            type: Directory
 ---

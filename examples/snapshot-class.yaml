@@ -10,7 +10,6 @@ metadata:
 driver: exa.csi.ddn.com
 deletionPolicy: Delete
 parameters:
-  snapshotUtility: tar
+  snapshotUtility: dtar
   snapshotFolder: csi-snapshots
-  # dtarPath: /opt/ddn/mpifileutils/bin/dtar
   snapshotMd5Verify: "false"
