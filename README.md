@@ -5,8 +5,8 @@ Releases can be found here - https://github.com/DDNStorage/exa-csi-driver/releas
 ## Compatibility matrix
 |CSI driver version|EXAScaler client version|EXA Scaler server version|
 |--- |---|---|
-|>=v2.7.0|>=2.14.0-ddn235|>=6.3.5|
-|v2.3.0 to v2.6.0|>=2.14.0-ddn182|6.3.2 to 6.3.4|
+|>=2.7.0|>=2.14.0-ddn235|>=6.3.5|
+|2.3.0 to 2.6.0|>=2.14.0-ddn182|6.3.2 to 6.3.4|
 
 ## Feature List
 |Feature|Feature Status|CSI Driver Version|CSI Spec Version|Kubernetes Version|Openshift Version|Arm64 support|
@@ -175,8 +175,6 @@ To enable `dtar` set `snapshotUtility: dtar` in config.
 - Mount propagation must be enabled, the Docker daemon for the cluster must allow shared mounts
   ([instructions](https://kubernetes.io/docs/concepts/storage/volumes/#mount-propagation))
 
-- MpiFileUtils dtar must be installed on all kubernetes nodes in order to use `dtar` as snapshot utility. Not required if `tar` is used for snapshots (default).
-
 ### Prerequisites
 EXAScaler client must be installed and configured on all kubernetes nodes. Please refer to EXAScaler Installation and Administration Guide.
 
@@ -236,6 +234,7 @@ Pull latest helm chart configuration before installing or upgrading.
 #### Upgrade
 
 - Make any necessary changes to the chart, for example new driver version: `tag: "v2.3.4"` in `deploy/helm-chart/values.yaml`.
+- If upgrading from < v2.8.0 to >= v2.8.0, make sure to increase resources in `deploy/helm-chart/values.yaml` due to mounting done inside the driver container starting from v2.8.0.
 - If metrics exporter is required, make changes to `deploy/helm-chart/values.yaml` according to your environment. refer to [metrics exporter configuration](#metrics-exporter-configuration)
 - Run `helm upgrade -n ${namespace} exascaler-csi-file-driver deploy/helm-chart/`
 
@@ -270,8 +269,8 @@ metrics:
   prometheus:                                                 
     releaseLabel: prometheus      # release label for prometheus operator                 
     createClusterRole: false   # set to false if using existing ClusterRole
-    createClustrerRoleName: exa-prometheus-cluster-role  # Name of ClusterRole to create, this name will be used to bind cluster role to prometheus service account
-    clusterRoleName: cluster-admin  # Name of ClusterRole to bind to prometheus service account if createClusterRole is set to false otherwise `createClustrerRoleName` will be used
+    createClusterRoleName: exa-prometheus-cluster-role  # Name of ClusterRole to create, this name will be used to bind cluster role to prometheus service account
+    clusterRoleName: cluster-admin  # Name of ClusterRole to bind to prometheus service account if createClusterRole is set to false otherwise `createClusterRoleName` will be used
     serviceAccountName: prometheus-kube-prometheus-prometheus # Service account name of prometheus
 
 ```
@@ -606,7 +605,8 @@ If a parameter is available for both config and storage class, storage class par
 | `v1xCompatible` | - | [Optional] Only used when upgrading the driver from v1.x.x to v2.x.x. Provides compatibility for volumes that were created beore the upgrade. Set it to `true` to point to the Exa cluster that was configured before the upgrade | `false` |
 |`tempMountPoint` | `tempMountPoint` | [Optional] Used when `exaFS` points to a subdirectory that does not exist on Exascaler and will be automatically created by the driver. This parameter sets the directory where Exascaler filesystem will be temporarily mounted to create the subdirectory. | `/tmp/exafs-mnt` |
 | `volumeDirPermissions` | `volumeDirPermissions` | [Optional] Defines file permissions for mounted volumes. | `0777` |
-| `hotNodes` | `hotNodes` | Determines whether `HotNodes` feature should be used. This feature can only be used by the driver when Hot Nodes (PCC) service is disabled and not used manually on the kubernetes workers. | `false` |
+| - | `encryption` | If enabled, volumes will be encrypted using `fscrypt`. | `false` |
+| `hotNodes` | `hotNodes` | Determines whether `HotNodes` feature should be used. This feature can only be used by the driver when Hot Nodes (PCC) service is disabled and not used manually on the kubernetes workers. HotNodes cannot be used with encryption and will be ignored if `encryption: true` | `false` |
 | `pccCache` | `pccCache` | Directory for cached files of the file system. Note that lpcc does not recognize directories with a trailing slash (“/” at the end). | `/csi-pcc` |
 | `pccAutocache` | `pccAutocache` | Condition for automatic file attachment (caching) | `projid={500}` |
 | `pccPurgeHighUsage` | `pccPurgeHighUsage` | If the disk usage of cache device is higher than high_usage, start detaching the files. Defaults to 90 (90% disk/inode usage). | `90` |
@@ -667,8 +667,7 @@ List of available snapshot parameters:
 | Name           | Description                                                       | Example                              |
 |----------------|-------------------------------------------------------------------|--------------------------------------|
 | `snapshotFolder` | [Optional] Folder on ExaScaler filesystem where the snapshots will be created. | `csi-snapshots` |
-| `snapshotUtility` | [Optional] Either `tar` or `dtar`.  `dtar` is faster but requires `dtar` to be installed on all k8s nodes. Default is `tar`| `dtar` |
-| `dtarPath` | [Optional] If `snapshotUtility` is `dtar` points to where the `dtar` utility is installed | `/opt/ddn/mpifileutils/bin/dtar` |
+| `snapshotUtility` | [Optional] Either `tar` or `dtar`. Default is `tar`| `dtar` |
 | `snapshotMd5Verify` | [Optional] Defines whether the driver should do md5sum check on the snapshot. Ensures that the snapshot is not corrupt but reduces performance. Default is `false` | `true` |
 | `exaFS` | Same parameter as in storage class. If the original volume was created using storage class parameter for `exaFS` this MUST match the value of storage class. | `10.3.3.200@tcp:/csi-fs` |
 | `mountPoint` | Same parameter as in storage class. If the original volume was created using storage class parameter for `mountPoint` this MUST match the value of storage class. | `/exa-csi-mnt` |
@@ -689,59 +688,13 @@ kubectl apply -f examples/nginx-from-snapshot.yaml
 
 Exascaler CSI driver supports 2 snapshot modes: `tar` or `dtar`.
 Note: Both modes consume large amounts of memory for large snapshots, so configure the driver limits accordingly.
-
-Default mode is `tar`.
-To enable `dtar` set `snapshotUtility: dtar` in config.
-Dtar is much faster but requires mpifileutils `dtar` installed on all the nodes as a prerequisite.
-Installing `dtar` might differ depending on your OS. Here is an example for Ubuntu 22
-
-```bash
-# Install dependencies mpifileutils
-cd
-mkdir -p /opt/ddn/mpifileutils
-cd /opt/ddn/mpifileutils
-sudo apt-get install -y cmake libarchive-dev libbz2-dev libcap-dev libssl-dev openmpi-bin libopenmpi-dev libattr1-dev
-
-export INSTALL_DIR=/opt/ddn/mpifileutils
-
-git clone https://github.com/LLNL/lwgrp.git
-cd lwgrp
-./autogen.sh
-./configure --prefix=$INSTALL_DIR
-make -j 16
-make install
-cd ..
-
-git clone https://github.com/LLNL/dtcmp.git
-cd dtcmp
-./autogen.sh
-./configure --prefix=$INSTALL_DIR --with-lwgrp=$INSTALL_DIR
-make -j 16
-make install
-cd ..
-
-git clone https://github.com/hpc/libcircle.git
-cd libcircle
-sh ./autogen.sh
-./configure --prefix=$INSTALL_DIR
-make -j 16
-make install
-cd ..
-
-git clone https://github.com/hpc/mpifileutils.git mpifileutils-clone
-cd mpifileutils-clone
-cmake ./ -DWITH_DTCMP_PREFIX=$INSTALL_DIR -DWITH_LibCircle_PREFIX=$INSTALL_DIR -DCMAKE_INSTALL_PREFIX=$INSTALL_DIR -DENABLE_LUSTRE=ON -DENABLE_XATTRS=ON
-make -j 16
-make install
-cd ..
-```
-
-If you use a different `INSTALL_DIR` path, pass it in config using `DtarPath` parameter.
+Default mode is `dtar`.
 
 ### Encryption
 Limitations:
 - If you are planning to use volumes from more than one Exascaler Filesystem on a single worker node, then the encryption does not work in the current release.
 - Encryption cannot be used with compression enabled.
+- If both encryption and HotNodes are enabled, only encryption is applied.
 
 To use encrypted volumes, first create a secret with a passphrase.
 ```bash

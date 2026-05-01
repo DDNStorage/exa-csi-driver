@@ -203,6 +203,14 @@ spec:
     spec:
       serviceAccount: exascaler-csi-controller-service-account
       priorityClassName: {{ .Values.priorityClassName }}
+      {{- with .Values.controller.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.controller.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         # csi-provisioner: sidecar container that watches Kubernetes PersistentVolumeClaim objects
         # and triggers CreateVolume/DeleteVolume against a CSI endpoint
@@ -335,17 +343,10 @@ spec:
             - name: secret
               mountPath: /config
               readOnly: true
-            - name: host
-              mountPath: /host
-              mountPropagation: Bidirectional
       volumes:
         - name: socket-dir
           emptyDir:
         - name: secret
           secret:
             secretName: {{ .Values.secretName }}
-        - name: host
-          hostPath:
-            path: /
-            type: Directory
 ---

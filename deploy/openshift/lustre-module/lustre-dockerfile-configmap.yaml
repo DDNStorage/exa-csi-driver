@@ -15,7 +15,7 @@ data:
       && cd lustre-* \
       && ./configure --with-linux=/usr/src/kernels/$(uname -r) --disable-server \
       && make rpms \
-      && dnf -y install lustre-client-[0-9]*.rpm kmod-lustre-client-[0-9]*.rpm lustre-iokit-[0-9]*.rpm
+      && dnf -y install lustre-client-[0-9]*.rpm kmod-lustre-client-[0-9]*.rpm lustre-client-devel-[0-9]*.rpm lustre-iokit-[0-9]*.rpm
       RUN mkdir -p /opt/lib && \
           cp -r /lib/modules /opt/lib/modules
       RUN depmod -b /opt

@@ -1,4 +1,5 @@
-# Create a new snapshot class
+# Create a new snapshot class with encryption
+# Uses dtar utility (available in both Kubernetes and OpenShift)
 
 # $ kubectl apply -f examples/snapshot-class-encrypted.yaml
 #
@@ -10,9 +11,9 @@ metadata:
 driver: exa.csi.ddn.com
 deletionPolicy: Delete
 parameters:
-  snapshotUtility: tar
+  snapshotUtility: dtar
   snapshotFolder: csi-snapshots
-  # dtarPath: /opt/ddn/mpifileutils/bin/dtar
+  dtarPath: /opt/ddn/mpifileutils/bin/dtar
   snapshotMd5Verify: "false"
   encryption: "true"
   csi.storage.k8s.io/snapshotter-secret-name: exa-csi-sc1

@@ -1,0 +1,155 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lustre-ci-dockerfile-mofed
+data:
+  dockerfile: |
+      # Build arguments for MOFED version configuration
+      ARG DOCA_IMAGE_TAG=doca3.2.0-25.10-1.2.8.0-2-rhel9.6-amd64
+      ARG MOFED_VERSION=25.10-1.2.8.0
+
+      # Stage 1a: Extract MOFED source from DOCA driver image
+      FROM nvcr.io/nvidia/mellanox/doca-driver:${DOCA_IMAGE_TAG} AS mofed-source
+
+      # Just extract the MOFED source - no building yet
+      ARG MOFED_VERSION
+      RUN echo "=== Extracting MOFED ${MOFED_VERSION} source from DOCA driver image ===" && \
+          ls -la /run/mellanox/src/
+
+      # Stage 1b: Build MOFED using builder-base (has kernel headers and entitlements)
+      FROM image-registry.openshift-image-registry.svc:5000/openshift-kmm/builder-base:latest AS mofed-builder
+      ARG KERNEL_VERSION
+      ARG MOFED_VERSION
+
+      # Copy MOFED source from DOCA driver image
+      COPY --from=mofed-source /run/mellanox/src/MLNX_OFED_SRC-${MOFED_VERSION} /build/MLNX_OFED_SRC-${MOFED_VERSION}
+
+      # Install build dependencies
+      RUN echo "Installing MOFED build dependencies..." && \
+          dnf install -y --allowerasing \
+          gcc make autoconf automake libtool perl python3 \
+          elfutils-libelf-devel rpm-build cpio && \
+          echo "Kernel version: ${KERNEL_VERSION}"
+
+      # Build the ofa_kernel source
+      RUN echo "=== Building MOFED ${MOFED_VERSION} for kernel ${KERNEL_VERSION} ===" && \
+          cd /build/MLNX_OFED_SRC-${MOFED_VERSION}/SRPMS && \
+          ls -la && \
+          echo "" && \
+          echo "Extracting mlnx-ofa_kernel SRPM..." && \
+          rpm2cpio mlnx-ofa_kernel-*.src.rpm | cpio -idmv && \
+          tar -xzf mlnx-ofa_kernel-*.tgz && \
+          OFED_SRC=$(ls -d mlnx-ofa_kernel-*/ | head -1) && \
+          cd $OFED_SRC && \
+          echo "Configuring MOFED for kernel ${KERNEL_VERSION}..." && \
+          ./configure --kernel-version=${KERNEL_VERSION} \
+                      --kernel-sources=/usr/src/kernels/${KERNEL_VERSION} \
+                      --with-core-mod \
+                      --with-ipoib-mod \
+                      --with-user_mad-mod \
+                      --with-user_access-mod \
+                      --with-addr_trans-mod && \
+          echo "" && \
+          echo "Building MOFED..." && \
+          make -j$(nproc) && \
+          echo "" && \
+          echo "MOFED build complete!" && \
+          echo "Verifying Module.symvers:" && \
+          ls -lh Module.symvers && \
+          echo "" && \
+          echo "Built kernel modules:" && \
+          find . -name "*.ko" | head -10
+
+      # Install MOFED modules in Stage 1, then export the installed modules + source
+      RUN cd /build/MLNX_OFED_SRC-${MOFED_VERSION}/SRPMS && \
+          OFED_SRC=$(ls -d mlnx-ofa_kernel-*/ | head -1) && \
+          cd $OFED_SRC && \
+          echo "=== Installing MOFED modules in Stage 1 ===" && \
+          make install_modules KERNELRELEASE=${KERNEL_VERSION} INSTALL_MOD_PATH=/ && \
+          echo "" && \
+          echo "Verifying installed modules:" && \
+          find /lib/modules/${KERNEL_VERSION} -name "*.ko" | grep -E "ib_|mlx|rdma" | head -20 && \
+          echo "" && \
+          echo "Running depmod..." && \
+          depmod -a ${KERNEL_VERSION} && \
+          echo "" && \
+          mkdir -p /mofed-export/ofa_kernel && \
+          cp -r /build/MLNX_OFED_SRC-${MOFED_VERSION}/SRPMS/$OFED_SRC /mofed-export/ofa_kernel/source && \
+          mkdir -p /mofed-export/modules && \
+          cp -r /lib/modules/${KERNEL_VERSION} /mofed-export/modules/ && \
+          echo "Exported MOFED tree and installed modules:" && \
+          ls -la /mofed-export/ofa_kernel/source/ && \
+          ls -la /mofed-export/modules/
+
+      # Stage 2: Build Lustre with MOFED headers and symbols
+      FROM image-registry.openshift-image-registry.svc:5000/openshift-kmm/builder-base:latest
+      ARG KERNEL_VERSION
+      ARG MOFED_VERSION
+      WORKDIR /build/
+      ENV SMDEV_CONTAINER_OFF=1
+
+      # Copy built MOFED source and installed modules from Stage 1
+      COPY --from=mofed-builder /mofed-export /mofed-temp
+
+      # Set up MOFED source in the location Lustre expects for building
+      RUN echo "Setting up MOFED ${MOFED_VERSION} build environment..." && \
+          mkdir -p /usr/src/ofa_kernel/default && \
+          echo "Copying built MOFED source tree..." && \
+          cp -r /mofed-temp/ofa_kernel/source/* /usr/src/ofa_kernel/default/ && \
+          echo "" && \
+          echo "Verifying MOFED setup:" && \
+          ls -la /usr/src/ofa_kernel/default/ && \
+          echo "" && \
+          echo "Checking for Module.symvers:" && \
+          ls -lh /usr/src/ofa_kernel/default/Module.symvers && \
+          echo "" && \
+          echo "Checking for RDMA headers:" && \
+          ls -la /usr/src/ofa_kernel/default/include/rdma/ | head -10
+
+      # Restore MOFED kernel modules from Stage 1 (already built and installed there)
+      RUN echo "=== Restoring MOFED kernel modules from Stage 1 ===" && \
+          echo "Copying installed MOFED modules..." && \
+          cp -r /mofed-temp/modules/${KERNEL_VERSION}/* /lib/modules/${KERNEL_VERSION}/ && \
+          echo "" && \
+          echo "Verifying MOFED modules restored:" && \
+          find /lib/modules/${KERNEL_VERSION} -name "*.ko" -type f | grep -E "ib_|rdma|mlx" | head -20 && \
+          echo "" && \
+          echo "Running depmod to update module dependencies..." && \
+          depmod -a ${KERNEL_VERSION} && \
+          echo "" && \
+          echo "MOFED modules restoration complete!"
+
+      # Build Lustre with MOFED 25.10 headers
+      RUN cd /source && \
+          tar -xvf lustre-client.tar.gz && \
+          rm lustre-client.tar.gz && \
+          cd lustre-* && \
+          echo "Configuring Lustre with MOFED ${MOFED_VERSION} at /usr/src/ofa_kernel/default" && \
+          ./configure --with-linux=/usr/src/kernels/${KERNEL_VERSION} \
+                     --disable-server \
+                     --with-o2ib=/usr/src/ofa_kernel/default && \
+          echo "Building Lustre RPMs..." && \
+          make rpms && \
+          echo "Lustre RPMs built successfully!" && \
+          ls -lh *.rpm
+
+      # Install all Lustre RPMs (kernel modules + userspace tools)
+      RUN cd /source/lustre-* && \
+          echo "Installing Lustre client packages..." && \
+          ls -la *.rpm && \
+          echo "" && \
+          echo "Installing with --nodeps because MOFED was built from source..." && \
+          rpm -ivh --nodeps kmod-lustre-client-[0-9]*.rpm && \
+          dnf -y install lustre-client-[0-9]*.rpm lustre-client-devel-[0-9]*.rpm lustre-iokit-[0-9]*.rpm || \
+          { echo "ERROR: Lustre RPM installation failed - sleeping 3600s for debug"; sleep 3600; exit 1; } && \
+          echo "" && \
+          echo "Verifying lnetctl installation:" && \
+          which lnetctl && \
+          lnetctl --version
+
+      RUN mkdir -p /opt/lib && \
+          cp -r /lib/modules /opt/lib/modules && \
+          echo "Modules copied to /opt/lib/modules"
+
+      RUN depmod -b /opt && \
+          echo "depmod completed successfully"

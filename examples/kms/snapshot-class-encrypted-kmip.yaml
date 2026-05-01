@@ -1,3 +1,6 @@
+# VolumeSnapshotClass for KMIP-encrypted snapshots
+# Uses dtar utility (available in both Kubernetes and OpenShift)
+
 apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
 metadata:
@@ -5,9 +8,9 @@ metadata:
 driver: exa.csi.ddn.com
 deletionPolicy: Delete
 parameters:
-  snapshotUtility: tar
+  snapshotUtility: dtar
   snapshotFolder: csi-snapshots
-  # dtarPath: /opt/ddn/mpifileutils/bin/dtar
+  dtarPath: /opt/ddn/mpifileutils/bin/dtar
   snapshotMd5Verify: "false"
   encryption: "true"
   kms.provider: "kmip"

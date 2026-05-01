@@ -29,6 +29,7 @@ metadata:
     name: exascaler-csi-file-driver-pv-nginx-persistent
 spec:
   storageClassName: exascaler-csi-file-driver-sc-nginx-persistent
+  persistentVolumeReclaimPolicy: Retain
   accessModes:
     - ReadWriteMany
   capacity:
@@ -38,7 +39,7 @@ spec:
     volumeHandle: exa1:10.204.86.113@tcp;/testfs:/mnt:/nginx-persistent # <configName:exaFS(colons replaced with semicolons):mountPoint:volumeName>
     volumeAttributes:         # volumeAttributes are the alternative of storageClass params for static (precreated) volumes.
       exaMountUid: "1001"           # Uid which will be used to access the volume in pod. Should be synced between EXA server and clients.
-      projectId: "4184814"
+      # projectId: "4184814"
 ---
 
 
