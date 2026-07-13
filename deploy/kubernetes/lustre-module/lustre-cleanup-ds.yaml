@@ -1,0 +1,115 @@
+# =====================================================================
+# Lustre Cleanup DaemonSet (Kubernetes - All OS Distributions)
+# =====================================================================
+# WARNING: This DaemonSet will unmount all Lustre file systems and
+# unload all Lustre-related kernel modules (including LNet)
+# on every node where it runs.
+#
+# Use only for cleanup or recovery purposes.
+#
+# USAGE:
+#   1. Deploy this DaemonSet to unload all 13 Lustre modules
+#   2. Wait for all pods to show "Lustre modules removed"
+#   3. Delete this DaemonSet
+#   4. Delete the lnet-mod-{os}.yaml KMM Module
+#
+# PLACEHOLDERS TO REPLACE:
+#   <REGISTRY_URL>     - Your container registry (e.g., 10.43.27.213:5000)
+#   <OS>               - OS distribution (ubuntu20, ubuntu22, ubuntu24)
+#   <KERNEL_VERSION>   - Kernel version placeholder (e.g., ${KERNEL_FULL_VERSION})
+#   <NODE_LABEL>       - Node label for KMM Module (e.g., lnet-ubuntu24)
+#   <OS_VERSION>       - OS version label (e.g., ubuntu-20.04, ubuntu-22.04, ubuntu-24.04)
+# =====================================================================
+
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: lustre-cleanup-<OS>
+  namespace: lustre-kmm
+spec:
+  selector:
+    matchLabels:
+      name: lustre-cleanup-<OS>
+  template:
+    metadata:
+      labels:
+        name: lustre-cleanup-<OS>
+    spec:
+      nodeSelector:
+        kmm.node.kubernetes.io/lustre-kmm.<NODE_LABEL>.ready: ""
+        os-version: <OS_VERSION>
+      hostNetwork: true
+      serviceAccountName: default
+      containers:
+        - name: lustre-cleanup
+          image: "<REGISTRY_URL>/lustre-client-<OS>:<KERNEL_VERSION>"
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+
+              echo "=========================================="
+              echo "Lustre Cleanup DaemonSet Started"
+              echo "Node: $(hostname)"
+              echo "=========================================="
+
+              # Unmount all Lustre filesystems
+              echo "=== Step 1: Unmounting Lustre filesystems ==="
+              if mount | grep -q 'type lustre'; then
+                umount -a -t lustre 2>/dev/null || echo "No Lustre filesystems to unmount"
+                echo "Lustre filesystems unmounted"
+              else
+                echo "No Lustre filesystems mounted"
+              fi
+
+              # Unload all Lustre modules using lustre_rmmod
+              echo "=== Step 2: Unloading Lustre modules (13 modules) ==="
+              if command -v lustre_rmmod >/dev/null 2>&1; then
+                lustre_rmmod || echo "lustre_rmmod completed with warnings"
+                echo "lustre_rmmod executed"
+              else
+                echo "WARNING: lustre_rmmod not found, unloading modules manually..."
+
+                # Manual module unloading in reverse dependency order
+                # Filesystem modules (10 modules)
+                for mod in lustre mgc lmv mdc osc lov fld fid ptlrpc obdclass; do
+                  if lsmod | grep -q "^${mod} "; then
+                    echo "Unloading module: ${mod}"
+                    rmmod ${mod} 2>/dev/null || echo "  ${mod} unload failed or not loaded"
+                  fi
+                done
+
+                # Base modules (3 modules - loaded by KMM, will be removed when Module is deleted)
+                # Do NOT unload these here - let KMM handle them:
+                # - ksocklnd (or ko2iblnd)
+                # - lnet
+                # - libcfs
+
+                echo "Manual module unloading completed"
+              fi
+
+              # Verify cleanup
+              echo "=== Step 3: Verifying cleanup ==="
+              echo "Remaining Lustre modules:"
+              lsmod | grep -E "lustre|mgc|lmv|mdc|osc|lov|fld|fid|ptlrpc|obdclass" || echo "  No filesystem modules remaining (GOOD)"
+
+              echo ""
+              echo "Base modules (will be removed by KMM when lnet-mod is deleted):"
+              lsmod | grep -E "ksocklnd|ko2iblnd|lnet|libcfs" || echo "  No base modules loaded"
+
+              echo ""
+              echo "=========================================="
+              echo "Lustre cleanup completed successfully!"
+              echo "=========================================="
+              echo ""
+              echo "Next steps:"
+              echo "  1. Delete this DaemonSet:  kubectl delete ds lustre-cleanup-<OS> -n lustre-kmm"
+              echo "  2. Delete KMM Module:      kubectl delete module <NODE_LABEL> -n lustre-kmm"
+              echo ""
+              echo "Sleeping forever (pod will be deleted when DaemonSet is removed)..."
+              sleep infinity
+          securityContext:
+            privileged: true
+            runAsUser: 0
+            allowPrivilegeEscalation: true

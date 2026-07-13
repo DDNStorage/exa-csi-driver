@@ -1,0 +1,96 @@
+apiVersion: kmm.sigs.x-k8s.io/v1beta1
+kind: Module
+metadata:
+  name: lnet-ubuntu24
+  namespace: lustre-kmm
+spec:
+  moduleLoader:
+    container:
+      modprobe:
+        moduleName: libcfs
+        dirName: /opt
+        # Load libcfs first (auto-detect CPU partitions)
+        modulesLoadingOrder:
+          - libcfs
+          - lnet
+          - ksocklnd
+
+      kernelMappings:
+        # Ubuntu 24.04 - Kernel 6.8.0-*-generic (GA/native kernel - wildcard for all versions)
+        - regexp: '^6\.8\.0-[0-9]+-generic$'
+          containerImage: "<REGISTRY_URL>/lustre-client-ubuntu24:${KERNEL_FULL_VERSION}"
+          build:
+            buildArgs:
+              - name: LUSTRE_TARBALL_NAME
+                value: "<LUSTRE_TARBALL_NAME>"
+              - name: LUSTRE_SOURCE_URL
+                value: "http://<LUSTRE_SOURCE_SERVER>/<LUSTRE_TARBALL_NAME>"
+            baseImageRegistryTLS:
+              insecure: true
+              insecureSkipTLSVerify: true
+            dockerfileConfigMap:
+              name: lustre-ubuntu24-dockerfile
+          registryTLS:
+            insecure: true
+            insecureSkipTLSVerify: true
+
+        # Ubuntu 24.04 - Kernel 6.11.0-*-generic (HWE kernel from 24.10)
+        # Supports: 6.11.0-*-generic (available in 24.04.2 point release)
+        - regexp: '^6\.11\.0-[0-9]+-generic$'
+          containerImage: "<REGISTRY_URL>/lustre-client-ubuntu24:${KERNEL_FULL_VERSION}"
+          build:
+            buildArgs:
+              - name: LUSTRE_TARBALL_NAME
+                value: "<LUSTRE_TARBALL_NAME>"
+              - name: LUSTRE_SOURCE_URL
+                value: "http://<LUSTRE_SOURCE_SERVER>/<LUSTRE_TARBALL_NAME>"
+            baseImageRegistryTLS:
+              insecure: true
+              insecureSkipTLSVerify: true
+            dockerfileConfigMap:
+              name: lustre-ubuntu24-dockerfile
+          registryTLS:
+            insecure: true
+            insecureSkipTLSVerify: true
+
+        # Ubuntu 24.04 - Kernel 6.14.0-*-generic (HWE kernel from 25.04)
+        # Supports: 6.14.0-*-generic (available in 24.04.3 point release)
+        - regexp: '^6\.14\.0-[0-9]+-generic$'
+          containerImage: "<REGISTRY_URL>/lustre-client-ubuntu24:${KERNEL_FULL_VERSION}"
+          build:
+            buildArgs:
+              - name: LUSTRE_TARBALL_NAME
+                value: "<LUSTRE_TARBALL_NAME>"
+              - name: LUSTRE_SOURCE_URL
+                value: "http://<LUSTRE_SOURCE_SERVER>/<LUSTRE_TARBALL_NAME>"
+            baseImageRegistryTLS:
+              insecure: true
+              insecureSkipTLSVerify: true
+            dockerfileConfigMap:
+              name: lustre-ubuntu24-dockerfile
+          registryTLS:
+            insecure: true
+            insecureSkipTLSVerify: true
+
+        # Ubuntu 24.04 - Kernel 6.17.0-*-generic (HWE kernel from 25.10)
+        # Supports: 6.17.0-20-generic, 6.17.0-29-generic, etc. (current in 24.04.4)
+        - regexp: '^6\.17\.0-[0-9]+-generic$'
+          containerImage: "<REGISTRY_URL>/lustre-client-ubuntu24:${KERNEL_FULL_VERSION}"
+          build:
+            buildArgs:
+              - name: LUSTRE_TARBALL_NAME
+                value: "<LUSTRE_TARBALL_NAME>"
+              - name: LUSTRE_SOURCE_URL
+                value: "http://<LUSTRE_SOURCE_SERVER>/<LUSTRE_TARBALL_NAME>"
+            baseImageRegistryTLS:
+              insecure: true
+              insecureSkipTLSVerify: true
+            dockerfileConfigMap:
+              name: lustre-ubuntu24-dockerfile
+          registryTLS:
+            insecure: true
+            insecureSkipTLSVerify: true
+
+  selector:
+    node-role.kubernetes.io/worker: ""
+    os-version: ubuntu-24.04
