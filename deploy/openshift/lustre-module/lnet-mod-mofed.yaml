@@ -6,9 +6,14 @@ spec:
   moduleLoader:
     container:
       modprobe:
-        moduleName: lnet
+        moduleName: libcfs
         dirName: /opt
+        # Load libcfs first with explicit parameters
+        parameters:
+          - cpu_pattern=""
+          - cpu_npartitions=20
         modulesLoadingOrder:
+          - libcfs
           - lnet
           - ksocklnd
         #   - ko2iblnd  # for Infiniband network

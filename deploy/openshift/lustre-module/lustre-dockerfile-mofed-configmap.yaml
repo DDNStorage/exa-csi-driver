@@ -140,7 +140,7 @@ data:
           echo "" && \
           echo "Installing with --nodeps because MOFED was built from source..." && \
           rpm -ivh --nodeps kmod-lustre-client-[0-9]*.rpm && \
-          dnf -y install lustre-client-[0-9]*.rpm lustre-client-devel-[0-9]*.rpm lustre-iokit-[0-9]*.rpm || \
+          rpm -Uvh --nodeps lustre-client-[0-9]*.rpm lustre-client-devel-[0-9]*.rpm lustre-iokit-[0-9]*.rpm || \
           { echo "ERROR: Lustre RPM installation failed - sleeping 3600s for debug"; sleep 3600; exit 1; } && \
           echo "" && \
           echo "Verifying lnetctl installation:" && \

@@ -1,0 +1,58 @@
+apiVersion: kmm.sigs.x-k8s.io/v1beta1
+kind: Module
+metadata:
+  name: lustre-client-ubuntu22
+  namespace: lustre-kmm
+spec:
+  moduleLoader:
+    container:
+      modprobe:
+        moduleName: lustre # Main Lustre filesystem module (loaded via DaemonSet)
+        dirName: /opt
+        # NOTE: This Module is OPTIONAL - filesystem modules are loaded by lnet-configuration-tcp-ubuntu22.yaml DaemonSet
+        # This file exists for reference/alternative deployment patterns only
+
+      kernelMappings:
+        # Ubuntu 22.04 - Kernel 5.15.0-*-generic (native kernel)
+        # Supports: 5.15.0-100-generic, 5.15.0-139-generic, etc.
+        - regexp: '^5\.15\.0-[0-9]+-generic$'
+          containerImage: "<REGISTRY_URL>/lustre-client-ubuntu22:${KERNEL_FULL_VERSION}"
+          build:
+            buildArgs:
+              - name: LUSTRE_TARBALL_NAME
+                value: "<LUSTRE_TARBALL_NAME>"
+              - name: LUSTRE_SOURCE_URL
+                value: "http://<LUSTRE_SOURCE_SERVER>/<LUSTRE_TARBALL_NAME>"
+            baseImageRegistryTLS:
+              insecure: true
+              insecureSkipTLSVerify: true
+            dockerfileConfigMap:
+              name: lustre-ubuntu22-dockerfile
+          registryTLS:
+            insecure: true
+            insecureSkipTLSVerify: true
+
+        # Ubuntu 22.04 - Kernel 6.8.0-*-generic (HWE kernel from 24.04)
+        # Supports: 6.8.0-100-generic, 6.8.0-124-generic, etc.
+        - regexp: '^6\.8\.0-[0-9]+-generic$'
+          containerImage: "<REGISTRY_URL>/lustre-client-ubuntu22:${KERNEL_FULL_VERSION}"
+          build:
+            buildArgs:
+              - name: LUSTRE_TARBALL_NAME
+                value: "<LUSTRE_TARBALL_NAME>"
+              - name: LUSTRE_SOURCE_URL
+                value: "http://<LUSTRE_SOURCE_SERVER>/<LUSTRE_TARBALL_NAME>"
+            baseImageRegistryTLS:
+              insecure: true
+              insecureSkipTLSVerify: true
+            dockerfileConfigMap:
+              name: lustre-ubuntu22-dockerfile
+          registryTLS:
+            insecure: true
+            insecureSkipTLSVerify: true
+
+  selector:
+    node-role.kubernetes.io/worker: ""
+    os-version: ubuntu-22.04
+    # Dependency: Requires lnet-mod-ubuntu22 to be loaded first (libcfs, lnet, ksocklnd)
+    kmm.node.kubernetes.io/lustre-kmm.lnet-ubuntu22.ready: ""

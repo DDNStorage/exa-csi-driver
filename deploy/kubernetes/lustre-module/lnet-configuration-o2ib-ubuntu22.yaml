@@ -1,0 +1,107 @@
+---
+# LNet o2ib Configuration DaemonSet for Kubernetes (Ubuntu 22.04)
+# InfiniBand networking with MOFED support
+# @author Abhishek Pandey
+
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: lnet-configuration-o2ib-ubuntu22
+  namespace: lustre-kmm
+spec:
+  selector:
+    matchLabels:
+      name: lnet-configuration-o2ib-ubuntu22
+  template:
+    metadata:
+      labels:
+        name: lnet-configuration-o2ib-ubuntu22
+    spec:
+      nodeSelector:
+        kmm.node.kubernetes.io/lustre-kmm.lnet-ubuntu22.ready: ""
+        os-version: ubuntu-22.04
+        network-type: infiniband
+      
+      hostNetwork: true
+      serviceAccountName: default
+      
+      initContainers:
+      - name: configure-lnet
+        image: "<REGISTRY_URL>/lustre-client-ubuntu22:${KERNEL_FULL_VERSION}"
+        command:
+          - /bin/bash
+          - -c
+          - |
+            set -e
+            echo "=== LNet o2ib Configuration Start (Ubuntu 22.04) ==="
+            
+            # Verify RDMA modules
+            lsmod | grep -E "ib_core|rdma_cm|ko2iblnd" || {
+              echo "ERROR: Required IB modules not loaded"
+              exit 1
+            }
+            
+            # Configure LNet
+            lnetctl lnet configure
+            
+            # Parse interfaces
+            IFS=',' read -ra IFACES <<< "${NET_IFACE}"
+            IFACE_LIST=""
+            for i in "${!IFACES[@]}"; do
+              IFACE_LIST="${IFACE_LIST}              $i: ${IFACES[$i]}\n"
+            done
+            
+            # Generate YAML config
+            cat >/tmp/lnet.yaml <<EOF
+            net:
+              - net type: ${NET_TYPE}
+                local NI(s):
+                  - interfaces:
+            $(echo -e "${IFACE_LIST}")
+                    tunables:
+                      peer_timeout: ${LNET_PEER_TIMEOUT}
+                      peer_credits: ${LNET_PEER_CREDITS}
+                      credits: ${LNET_CREDITS}
+                    lnd tunables:
+                      peercredits_hiw: ${LNET_PEERCREDITS_HIW}
+                      concurrent_sends: ${LNET_CONCURRENT_SENDS}
+                      ntx: ${LNET_NTX}
+            EOF
+            
+            lnetctl import < /tmp/lnet.yaml
+            modprobe lustre
+            modprobe mgc
+            
+            echo "=== Post-Configuration ==="
+            for iface in $(echo ${NET_IFACE} | tr ',' ' '); do
+              ip addr show $iface | grep 'inet ' || echo "WARNING: $iface no IP"
+            done
+            
+            echo "ready" > /tmp/lnet-ready
+            lnetctl net show -v
+        env:
+          - name: NET_TYPE
+            value: "o2ib"
+          - name: NET_IFACE
+            value: "<IFACE_NAME>"
+          - name: LNET_PEER_TIMEOUT
+            value: "180"
+          - name: LNET_PEER_CREDITS
+            value: "32"
+          - name: LNET_CREDITS
+            value: "256"
+          - name: LNET_PEERCREDITS_HIW
+            value: "16"
+          - name: LNET_CONCURRENT_SENDS
+            value: "64"
+          - name: LNET_NTX
+            value: "512"
+        securityContext:
+          privileged: true
+      
+      containers:
+      - name: lnet-keepalive
+        image: "<REGISTRY_URL>/lustre-client-ubuntu22:${KERNEL_FULL_VERSION}"
+        command: ["/bin/bash", "-c", "trap 'sleep 10' TERM; while true; do sleep 5; done"]
+        securityContext:
+          privileged: true
