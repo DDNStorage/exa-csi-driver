@@ -1,0 +1,166 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lustre-ubuntu24-dockerfile
+  namespace: lustre-kmm
+data:
+  dockerfile: |
+    # Ubuntu 24.04 Lustre Client Module Builder (Native Kernel + TCP-Only)
+    # Builds Lustre from source (DDN 2.14.0_ddn235)
+    # Kernel: 6.8.0-*-generic (Ubuntu 24.04 LTS native kernel)
+    # TCP-Only Transport: InfiniBand/RDMA disabled (--with-o2ib=no)
+    FROM ubuntu:24.04
+
+    ARG KERNEL_VERSION
+    ARG LUSTRE_TARBALL_NAME=<LUSTRE_TARBALL_NAME>
+    ARG LUSTRE_SOURCE_URL=http://<LUSTRE_SOURCE_SERVER>/${LUSTRE_TARBALL_NAME}
+    WORKDIR /build/
+
+    # Set environment variables
+    ENV DEBIAN_FRONTEND=noninteractive
+    ENV SMDEV_CONTAINER_OFF=1
+
+    # Install build dependencies for Lustre compilation + DKMS (TCP-Only, no InfiniBand/RDMA)
+    RUN apt-get update && apt-get install -y \
+        build-essential \
+        gcc-13 \
+        g++-13 \
+        kmod \
+        dkms \
+        linux-headers-${KERNEL_VERSION} \
+        linux-headers-generic \
+        autoconf \
+        automake \
+        libtool \
+        pkg-config \
+        libyaml-dev \
+        libselinux1-dev \
+        libsnmp-dev \
+        libnl-genl-3-dev \
+        libkeyutils-dev \
+        libmount-dev \
+        libreadline-dev \
+        python3-dev \
+        python3-setuptools \
+        flex \
+        bison \
+        libjson-c-dev \
+        module-assistant \
+        debhelper \
+        quilt \
+        ed \
+        rsync \
+        git \
+        wget \
+        curl \
+        ca-certificates \
+        software-properties-common \
+        && apt-get clean \
+        && rm -rf /var/lib/apt/lists/*
+
+    # Set GCC-13 as default compiler for Ubuntu 24.04 kernel 6.8.0 compatibility
+    RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100 && \
+        update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-13 100 && \
+        update-alternatives --install /usr/bin/cc cc /usr/bin/gcc-13 100 && \
+        update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++-13 100 && \
+        gcc --version && \
+        echo "GCC version set to gcc-13 for Ubuntu 24.04 kernel 6.8.0 compatibility"
+
+    # Download and extract DDN EXAScaler client bundle (contains nested lustre-source.tar.gz)
+    RUN wget -O ${LUSTRE_TARBALL_NAME} ${LUSTRE_SOURCE_URL} && \
+        tar -xzf ${LUSTRE_TARBALL_NAME} && \
+        rm ${LUSTRE_TARBALL_NAME} && \
+        echo "=== Extracted exa-client contents ===" && \
+        ls -la exa-client/
+
+    # Extract the nested Lustre source tarball
+    RUN cd exa-client && \
+        tar -xzf lustre-source.tar.gz && \
+        rm lustre-source.tar.gz && \
+        echo "=== Extracted Lustre source ===" && \
+        ls -la
+
+    # Build Lustre from source using DKMS
+    # ES-1327 FIX: Use DKMS direct installation instead of .deb packages
+    # This avoids path resolution issues with make debs
+    RUN cd exa-client/lustre-* && \
+        sh autogen.sh && \
+        ./configure \
+            --with-linux=/usr/src/linux-headers-${KERNEL_VERSION} \
+            --disable-server \
+            --enable-client \
+            --without-python \
+            --with-o2ib=no && \
+        make -j$(nproc) && \
+        make install && \
+        echo "Build complete, checking installed modules..." && \
+        find /lib/modules/${KERNEL_VERSION} -name "*.ko" -path "*/lustre/*" | head -10 || true
+
+    # Verify modules were installed
+    RUN echo "Verifying installed modules..." && \
+        find /lib/modules/${KERNEL_VERSION} -name "*.ko" -type f | grep -E "(lnet|ksocklnd|ko2iblnd)" && \
+        echo "Module verification successful"
+
+    # Set up DKMS for automatic kernel module rebuilds
+    # Copy Lustre source to /usr/src for DKMS
+    RUN cd exa-client && LUSTRE_VERSION=$(ls -d lustre-* | head -1 | sed 's/lustre-//') && \
+        echo "Setting up DKMS for Lustre version: ${LUSTRE_VERSION}" && \
+        mkdir -p /usr/src/lustre-client-${LUSTRE_VERSION} && \
+        cd lustre-* && \
+        cp -r . /usr/src/lustre-client-${LUSTRE_VERSION}/ && \
+        echo "Creating dkms.conf..." && \
+        echo 'PACKAGE_NAME="lustre-client"' > /usr/src/lustre-client-${LUSTRE_VERSION}/dkms.conf && \
+        echo 'PACKAGE_VERSION="'${LUSTRE_VERSION}'"' >> /usr/src/lustre-client-${LUSTRE_VERSION}/dkms.conf && \
+        echo 'BUILT_MODULE_NAME[0]="lnet"' >> /usr/src/lustre-client-${LUSTRE_VERSION}/dkms.conf && \
+        echo 'BUILT_MODULE_LOCATION[0]="lnet/lnet/"' >> /usr/src/lustre-client-${LUSTRE_VERSION}/dkms.conf && \
+        echo 'DEST_MODULE_LOCATION[0]="/updates/kernel/net/lustre/"' >> /usr/src/lustre-client-${LUSTRE_VERSION}/dkms.conf && \
+        echo 'BUILT_MODULE_NAME[1]="ksocklnd"' >> /usr/src/lustre-client-${LUSTRE_VERSION}/dkms.conf && \
+        echo 'BUILT_MODULE_LOCATION[1]="lnet/klnds/socklnd/"' >> /usr/src/lustre-client-${LUSTRE_VERSION}/dkms.conf && \
+        echo 'DEST_MODULE_LOCATION[1]="/updates/kernel/net/lustre/"' >> /usr/src/lustre-client-${LUSTRE_VERSION}/dkms.conf && \
+        echo 'BUILT_MODULE_NAME[2]="ko2iblnd"' >> /usr/src/lustre-client-${LUSTRE_VERSION}/dkms.conf && \
+        echo 'BUILT_MODULE_LOCATION[2]="lnet/klnds/o2iblnd/"' >> /usr/src/lustre-client-${LUSTRE_VERSION}/dkms.conf && \
+        echo 'DEST_MODULE_LOCATION[2]="/updates/kernel/net/lustre/"' >> /usr/src/lustre-client-${LUSTRE_VERSION}/dkms.conf && \
+        echo 'BUILT_MODULE_NAME[3]="libcfs"' >> /usr/src/lustre-client-${LUSTRE_VERSION}/dkms.conf && \
+        echo 'BUILT_MODULE_LOCATION[3]="libcfs/libcfs/"' >> /usr/src/lustre-client-${LUSTRE_VERSION}/dkms.conf && \
+        echo 'DEST_MODULE_LOCATION[3]="/updates/kernel/net/lustre/"' >> /usr/src/lustre-client-${LUSTRE_VERSION}/dkms.conf && \
+        echo 'BUILT_MODULE_NAME[4]="lustre"' >> /usr/src/lustre-client-${LUSTRE_VERSION}/dkms.conf && \
+        echo 'BUILT_MODULE_LOCATION[4]="lustre/llite/"' >> /usr/src/lustre-client-${LUSTRE_VERSION}/dkms.conf && \
+        echo 'DEST_MODULE_LOCATION[4]="/updates/kernel/fs/lustre/"' >> /usr/src/lustre-client-${LUSTRE_VERSION}/dkms.conf && \
+        echo 'AUTOINSTALL="yes"' >> /usr/src/lustre-client-${LUSTRE_VERSION}/dkms.conf && \
+        echo 'MAKE="./configure --with-linux=/lib/modules/\${kernelver}/build --disable-server --enable-client --without-python && make -j\$(nproc)"' >> /usr/src/lustre-client-${LUSTRE_VERSION}/dkms.conf && \
+        echo 'CLEAN="make clean || true"' >> /usr/src/lustre-client-${LUSTRE_VERSION}/dkms.conf
+
+    # Register Lustre with DKMS
+    RUN cd exa-client && LUSTRE_VERSION=$(ls -d lustre-* | head -1 | sed 's/lustre-//') && \
+        echo "Registering Lustre ${LUSTRE_VERSION} with DKMS..." && \
+        dkms add -m lustre-client -v ${LUSTRE_VERSION} && \
+        echo "Building Lustre modules with DKMS for kernel ${KERNEL_VERSION}..." && \
+        dkms build -m lustre-client -v ${LUSTRE_VERSION} -k ${KERNEL_VERSION} && \
+        echo "Installing Lustre modules with DKMS..." && \
+        dkms install -m lustre-client -v ${LUSTRE_VERSION} -k ${KERNEL_VERSION} && \
+        echo "DKMS setup complete" && \
+        dkms status
+
+    # Copy modules to /opt for KMM
+    RUN echo "Copying modules to /opt for KMM..." && \
+        mkdir -p /opt/lib/modules/${KERNEL_VERSION} && \
+        if [ -d /lib/modules/${KERNEL_VERSION}/updates ]; then \
+            cp -rv /lib/modules/${KERNEL_VERSION}/updates /opt/lib/modules/${KERNEL_VERSION}/ && \
+            echo "Copied updates directory"; \
+        fi && \
+        if [ -d /lib/modules/${KERNEL_VERSION}/extra ]; then \
+            cp -rv /lib/modules/${KERNEL_VERSION}/extra /opt/lib/modules/${KERNEL_VERSION}/ && \
+            echo "Copied extra directory"; \
+        fi && \
+        depmod -b /opt ${KERNEL_VERSION} && \
+        echo "Running depmod completed"
+
+    # Verify modules are present in /opt
+    RUN echo "Verifying modules in /opt..." && \
+        find /opt/lib/modules/${KERNEL_VERSION} -name "*.ko" -type f && \
+        MODULE_COUNT=$(find /opt/lib/modules/${KERNEL_VERSION} -name "*.ko" -type f | wc -l) && \
+        echo "Found ${MODULE_COUNT} kernel modules in /opt" && \
+        if [ "${MODULE_COUNT}" -lt 3 ]; then \
+            echo "ERROR: Expected at least 3 modules (lnet, ksocklnd, lustre) but found ${MODULE_COUNT}" && \
+            exit 1; \
+        fi

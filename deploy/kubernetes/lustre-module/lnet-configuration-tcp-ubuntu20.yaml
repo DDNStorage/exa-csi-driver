@@ -1,0 +1,217 @@
+---
+# LNet + Lustre Configuration DaemonSet for Ubuntu 20.04
+# Adapted from: exascaler-csi-file-driver/deploy/openshift/lustre-module/lnet-lustre-configuration-ds-mofed.yaml
+# Network: TCP (ksocklnd) instead of InfiniBand (ko2iblnd)
+
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: lnet-configuration-tcp-ubuntu20
+  namespace: lustre-kmm
+spec:
+  selector:
+    matchLabels:
+      name: lnet-configuration-tcp-ubuntu20
+  template:
+    metadata:
+      labels:
+        name: lnet-configuration-tcp-ubuntu20
+    spec:
+      nodeSelector:
+        kmm.node.kubernetes.io/lustre-kmm.lnet-ubuntu20.ready: ""
+        os-version: ubuntu-20.04
+      hostNetwork: true
+      serviceAccountName: default
+      initContainers:
+        - name: configure-lnet
+          image: "<REGISTRY_URL>/lustre-client-ubuntu20:${KERNEL_FULL_VERSION}"
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+
+              # ==============================================
+              # Module Readiness Check 
+              # ==============================================
+              # Wait for required modules to be loaded by KMM before proceeding
+              # This prevents race condition where configuration starts before ksocklnd is ready
+              echo "=== Waiting for required kernel modules to load ==="
+              REQUIRED_MODULES="libcfs lnet ksocklnd"
+              MAX_WAIT=300
+              WAITED=0
+
+              while [ $WAITED -lt $MAX_WAIT ]; do
+                ALL_LOADED=true
+                MISSING=""
+
+                for module in $REQUIRED_MODULES; do
+                  if ! lsmod | grep -q "^${module}"; then
+                    ALL_LOADED=false
+                    MISSING="$MISSING $module"
+                  fi
+                done
+
+                if [ "$ALL_LOADED" = "true" ]; then
+                  echo "INFO: All required modules loaded successfully"
+                  break
+                fi
+
+                echo "Waiting for modules:$MISSING (${WAITED}/${MAX_WAIT}s)"
+                sleep 2
+                WAITED=$((WAITED + 2))
+              done
+
+              # Verify all modules are loaded
+              if [ "$ALL_LOADED" != "true" ]; then
+                echo "ERROR: Required modules not loaded after ${MAX_WAIT}s:$MISSING"
+                exit 1
+              fi
+
+              echo "=== Module verification complete ==="
+              lsmod | grep -E "libcfs|lnet|ksocklnd"
+
+              # Note: libcfs module with cpu_npartitions is loaded by KMM Module (lnet-mod-ubuntu20.yaml)
+              # Verify it was loaded correctly
+              echo "=== Verifying libcfs configuration (set by KMM) ==="
+              echo "  cpu_npartitions: $(cat /sys/module/libcfs/parameters/cpu_npartitions 2>/dev/null || echo 'N/A')"
+              echo "  cpu_pattern: $(cat /sys/module/libcfs/parameters/cpu_pattern 2>/dev/null || echo 'N/A')"
+
+              # ==============================================
+              #  Proper LNet Configuration Error Handling
+              # ==============================================
+              echo "=== Configuring LNet: net=${NET_TYPE}, iface=${NET_IFACE} ==="
+              echo "Initializing LNet..."
+
+              # Try to configure LNet, but verify it's actually working
+              if ! lnetctl lnet configure 2>/dev/null; then
+                # Check if LNet is already configured
+                if lnetctl net show 2>/dev/null | grep -q "net type"; then
+                  echo "LNet already configured (continuing)"
+                else
+                  echo "ERROR: Failed to configure LNet and no existing configuration found"
+                  exit 1
+                fi
+              fi
+
+              # Parse comma-separated interface list from NET_IFACE
+              IFS=',' read -ra IFACES <<< "${NET_IFACE}"
+              IFACE_LIST=""
+              for i in "${!IFACES[@]}"; do
+                IFACE_LIST="${IFACE_LIST}              $i: ${IFACES[$i]}\n"
+              done
+
+              # Generate YAML configuration with tunables
+              cat >/tmp/lnet.yaml <<EOF
+              net:
+                - net type: ${NET_TYPE}
+                  local NI(s):
+                    - interfaces:
+              $(echo -e "${IFACE_LIST}")
+                      tunables:
+                        peer_timeout: ${LNET_PEER_TIMEOUT}
+                        peer_credits: ${LNET_PEER_CREDITS}
+                        credits: ${LNET_CREDITS}
+                      lnd tunables:
+                        peercredits_hiw: ${LNET_PEERCREDITS_HIW}
+                        concurrent_sends: ${LNET_CONCURRENT_SENDS}
+                        ntx: ${LNET_NTX}
+              EOF
+
+              echo "=== Generated LNet Configuration ==="
+              cat /tmp/lnet.yaml
+              echo "=== Importing Configuration ==="
+              lnetctl import < /tmp/lnet.yaml || echo "Configuration already exists (continuing)"
+
+              # ==============================================
+              #  Module Load Retry Logic
+              # ==============================================
+              echo "=== Loading Lustre client modules (10 filesystem modules) ==="
+              LUSTRE_MODULES="obdclass ptlrpc fid fld lmv lov mdc osc mgc lustre"
+              FAILED_MODULES=""
+
+              for module in $LUSTRE_MODULES; do
+                # Check if already loaded
+                if lsmod | grep -q "^${module}"; then
+                  echo "INFO: $module already loaded"
+                  continue
+                fi
+
+                # Try to load with retry (up to 3 attempts)
+                MAX_RETRIES=3
+                LOADED=false
+
+                for attempt in $(seq 1 $MAX_RETRIES); do
+                  if modprobe $module 2>/dev/null; then
+                    echo "INFO: $module loaded successfully"
+                    LOADED=true
+                    break
+                  else
+                    if [ $attempt -lt $MAX_RETRIES ]; then
+                      echo "WARN: $module load attempt $attempt failed, retrying..."
+                      sleep 1
+                    fi
+                  fi
+                done
+
+                if [ "$LOADED" != "true" ]; then
+                  echo "ERROR: $module failed to load after $MAX_RETRIES attempts"
+                  FAILED_MODULES="$FAILED_MODULES $module"
+                fi
+              done
+
+              # Note: Some modules may not be available in base build
+              # They will be loaded on-demand when mounting Lustre filesystems
+              if [ -n "$FAILED_MODULES" ]; then
+                echo "INFO: Some modules not loaded (will load on-demand when needed):$FAILED_MODULES"
+              fi
+
+              echo "=== Loaded modules ==="
+              lsmod | grep -E "lustre|mgc|lnet|libcfs|ksocklnd" || echo "Modules not visible in lsmod"
+
+              echo "=== LNet Status ==="
+              lnetctl net show -v || lnetctl net show
+
+              # Verify network status
+              echo "=== Post-Configuration Network Status ==="
+              for iface in $(echo ${NET_IFACE} | tr ',' ' '); do
+                ip addr show $iface | grep 'inet ' || echo "WARNING: $iface has no IP address"
+              done
+
+              echo "=== Configuration Complete ==="
+              echo "ready" > /tmp/lnet-ready
+          env:
+            # Network configuration
+            - name: NET_TYPE
+              value: "tcp"
+            - name: NET_IFACE
+              value: "<IFACE_NAME>"
+
+            # LNet tunables - optimized for TCP (ksocklnd)
+            - name: LNET_PEER_TIMEOUT
+              value: "180"
+            - name: LNET_PEER_CREDITS
+              value: "8"
+            - name: LNET_CREDITS
+              value: "256"
+
+            # LND (ksocklnd) tunables
+            - name: LNET_PEERCREDITS_HIW
+              value: "4"
+            - name: LNET_CONCURRENT_SENDS
+              value: "16"
+            - name: LNET_NTX
+              value: "512"
+          securityContext:
+            privileged: true
+      containers:
+        - name: lnet-keepalive
+          image: "<REGISTRY_URL>/lustre-client-ubuntu20:${KERNEL_FULL_VERSION}"
+          command:
+            - /bin/bash
+            - -c
+            - |
+              trap "sleep 10" TERM
+              while true; do sleep 5; done
+          securityContext:
+            privileged: true

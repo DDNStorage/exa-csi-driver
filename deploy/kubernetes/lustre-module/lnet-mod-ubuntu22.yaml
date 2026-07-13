@@ -1,0 +1,116 @@
+apiVersion: kmm.sigs.x-k8s.io/v1beta1
+kind: Module
+metadata:
+  name: lnet-ubuntu22
+  namespace: lustre-kmm
+spec:
+  moduleLoader:
+    container:
+      modprobe:
+        moduleName: libcfs
+        dirName: /opt
+        # Load libcfs first (no parameters - let it auto-detect CPU partitions)
+        modulesLoadingOrder:
+          - libcfs # Core infrastructure (MUST be first - matches moduleName)
+          - lnet # Lustre network layer
+          - ksocklnd # TCP/IP transport
+
+      kernelMappings:
+        # Ubuntu 22.04 - Kernel 5.15.0-*-generic (native kernel)
+        # Supports: 5.15.0-100-generic, 5.15.0-139-generic, etc.
+        - regexp: '^5\.15\.0-[0-9]+-generic$'
+          containerImage: "<REGISTRY_URL>/lustre-client-ubuntu22:${KERNEL_FULL_VERSION}"
+          build:
+            buildArgs:
+              - name: LUSTRE_TARBALL_NAME
+                value: "<LUSTRE_TARBALL_NAME>"
+              - name: LUSTRE_SOURCE_URL
+                value: "http://<LUSTRE_SOURCE_SERVER>/<LUSTRE_TARBALL_NAME>"
+            baseImageRegistryTLS:
+              insecure: true
+              insecureSkipTLSVerify: true
+            dockerfileConfigMap:
+              name: lustre-ubuntu22-dockerfile
+          registryTLS:
+            insecure: true
+            insecureSkipTLSVerify: true
+
+        # Ubuntu 22.04 - Kernel 5.19.0-*-generic (HWE kernel)
+        # Supports: 5.19.0-*-generic
+        - regexp: '^5\.19\.0-[0-9]+-generic$'
+          containerImage: "<REGISTRY_URL>/lustre-client-ubuntu22:${KERNEL_FULL_VERSION}"
+          build:
+            buildArgs:
+              - name: LUSTRE_TARBALL_NAME
+                value: "<LUSTRE_TARBALL_NAME>"
+              - name: LUSTRE_SOURCE_URL
+                value: "http://<LUSTRE_SOURCE_SERVER>/<LUSTRE_TARBALL_NAME>"
+            baseImageRegistryTLS:
+              insecure: true
+              insecureSkipTLSVerify: true
+            dockerfileConfigMap:
+              name: lustre-ubuntu22-dockerfile
+          registryTLS:
+            insecure: true
+            insecureSkipTLSVerify: true
+
+        # Ubuntu 22.04 - Kernel 6.2.0-*-generic (HWE kernel)
+        # Supports: 6.2.0-*-generic
+        - regexp: '^6\.2\.0-[0-9]+-generic$'
+          containerImage: "<REGISTRY_URL>/lustre-client-ubuntu22:${KERNEL_FULL_VERSION}"
+          build:
+            buildArgs:
+              - name: LUSTRE_TARBALL_NAME
+                value: "<LUSTRE_TARBALL_NAME>"
+              - name: LUSTRE_SOURCE_URL
+                value: "http://<LUSTRE_SOURCE_SERVER>/<LUSTRE_TARBALL_NAME>"
+            baseImageRegistryTLS:
+              insecure: true
+              insecureSkipTLSVerify: true
+            dockerfileConfigMap:
+              name: lustre-ubuntu22-dockerfile
+          registryTLS:
+            insecure: true
+            insecureSkipTLSVerify: true
+
+        # Ubuntu 22.04 - Kernel 6.5.0-*-generic (HWE kernel)
+        # Supports: 6.5.0-*-generic
+        - regexp: '^6\.5\.0-[0-9]+-generic$'
+          containerImage: "<REGISTRY_URL>/lustre-client-ubuntu22:${KERNEL_FULL_VERSION}"
+          build:
+            buildArgs:
+              - name: LUSTRE_TARBALL_NAME
+                value: "<LUSTRE_TARBALL_NAME>"
+              - name: LUSTRE_SOURCE_URL
+                value: "http://<LUSTRE_SOURCE_SERVER>/<LUSTRE_TARBALL_NAME>"
+            baseImageRegistryTLS:
+              insecure: true
+              insecureSkipTLSVerify: true
+            dockerfileConfigMap:
+              name: lustre-ubuntu22-dockerfile
+          registryTLS:
+            insecure: true
+            insecureSkipTLSVerify: true
+
+        # Ubuntu 22.04 - Kernel 6.8.0-*-generic (HWE kernel from 24.04)
+        # Supports: 6.8.0-100-generic, 6.8.0-124-generic, etc.
+        - regexp: '^6\.8\.0-[0-9]+-generic$'
+          containerImage: "<REGISTRY_URL>/lustre-client-ubuntu22:${KERNEL_FULL_VERSION}"
+          build:
+            buildArgs:
+              - name: LUSTRE_TARBALL_NAME
+                value: "<LUSTRE_TARBALL_NAME>"
+              - name: LUSTRE_SOURCE_URL
+                value: "http://<LUSTRE_SOURCE_SERVER>/<LUSTRE_TARBALL_NAME>"
+            baseImageRegistryTLS:
+              insecure: true
+              insecureSkipTLSVerify: true
+            dockerfileConfigMap:
+              name: lustre-ubuntu22-dockerfile
+          registryTLS:
+            insecure: true
+            insecureSkipTLSVerify: true
+
+  selector:
+    node-role.kubernetes.io/worker: ""
+    os-version: ubuntu-22.04

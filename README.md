@@ -5,8 +5,9 @@ Releases can be found here - https://github.com/DDNStorage/exa-csi-driver/releas
 ## Compatibility matrix
 |CSI driver version|EXAScaler client version|EXA Scaler server version|
 |--- |---|---|
+|>=2.9.0|>=2.14.0-ddn255|>=6.3.8 C1|
 |>=2.8.0|>=2.14.0-ddn252|>=6.3.7|
-|>=2.7.0|>=2.14.0-ddn235|>=6.3.5-2026021300|
+|>=2.7.0|>=2.14.0-ddn235|>=6.3.5|
 |2.3.0 to 2.6.0|>=2.14.0-ddn182|6.3.2 to 6.3.4|
 
 ## Feature List
@@ -24,6 +25,7 @@ Releases can be found here - https://github.com/DDNStorage/exa-csi-driver/releas
 |Exascaler Hot Nodes|GA|>= 2.3.0|>= 1.0.0|>=1.18| Not supported yet|Not supported yet|
 |Compression|GA|>= 2.3.5|>= 1.0.0|>=1.17|>=4.13|>=2.6.0|
 |Encryption|GA|>= 2.3.5|>= 1.0.0|>=1.17| Not supported yet|>=2.6.0|
+|Automated Lustre Module Install|GA|>= 2.9.0|N/A|>=1.24|>=4.13|>=2.9.0|
 
 ## Access Modes support
 |Access mode| Supported in version|
@@ -41,6 +43,7 @@ Releases can be found here - https://github.com/DDNStorage/exa-csi-driver/releas
 |v4.15|>=v2.2.4|
 |v4.19|>=v2.6.0|
 |v4.20|>=v2.8.1|
+|v4.21|>=v2.9.0|
 
 ## OpenShift
 ### Prerequisites
@@ -142,7 +145,7 @@ List of available snapshot parameters:
 | Name           | Description                                                       | Example                              |
 |----------------|-------------------------------------------------------------------|--------------------------------------|
 | `snapshotFolder` | [Optional] Folder on ExaScaler filesystem where the snapshots will be created. | `csi-snapshots` |
-| `snapshotUtility` | [Optional] Either `tar` or `dtar`. Default is `tar`| `dtar` |
+| `snapshotUtility` | [Optional] Either `tar` or `dtar`. Default is `dtar`| `dtar` |
 | `snapshotMd5Verify` | [Optional] Defines whether the driver should do md5sum check on the snapshot. Ensures that the snapshot is not corrupt but reduces performance. Default is `false` | `true` |
 | `exaFS` | Same parameter as in storage class. If the original volume was created using storage class parameter for `exaFS` this MUST match the value of storage class. | `10.3.3.200@tcp:/csi-fs` |
 | `mountPoint` | Same parameter as in storage class. If the original volume was created using storage class parameter for `mountPoint` this MUST match the value of storage class. | `/exa-csi-mnt` |
@@ -162,8 +165,8 @@ oc apply -f examples/nginx-from-snapshot.yaml
 ```
 
 Exascaler CSI driver supports 2 snapshot modes: `tar` or `dtar`.
-Default mode is `tar`. Dtar is much faster.
-To enable `dtar` set `snapshotUtility: dtar` in config.
+Default mode is `dtar`. Dtar is much faster.
+To use `tar` instead, set `snapshotUtility: tar` in config.
 
 
 ## Kubernetes
@@ -178,7 +181,20 @@ To enable `dtar` set `snapshotUtility: dtar` in config.
   ([instructions](https://kubernetes.io/docs/concepts/storage/volumes/#mount-propagation))
 
 ### Prerequisites
+
 EXAScaler client must be installed and configured on all kubernetes nodes. Please refer to EXAScaler Installation and Administration Guide.
+
+### Automatic installation of lustre modules
+
+Installing Kubernetes Kernel Module Management (KMM) operator is a required prerequisite.
+
+For detailed instructions on deploying Lustre client modules with KMM, including:
+- Prerequisites and supported distributions
+- Step-by-step deployment guides
+- TCP and InfiniBand network configurations
+- Troubleshooting and cleanup procedures
+
+Please refer to: **[deploy/kubernetes/lustre-module/README.md](deploy/kubernetes/lustre-module/README.md)**
 
 #### Using volumeMode: Block
 To enable `volumeMode: Block` (raw block device support), your nodes must have:
@@ -669,7 +685,7 @@ List of available snapshot parameters:
 | Name           | Description                                                       | Example                              |
 |----------------|-------------------------------------------------------------------|--------------------------------------|
 | `snapshotFolder` | [Optional] Folder on ExaScaler filesystem where the snapshots will be created. | `csi-snapshots` |
-| `snapshotUtility` | [Optional] Either `tar` or `dtar`. Default is `tar`| `dtar` |
+| `snapshotUtility` | [Optional] Either `tar` or `dtar`. Default is `dtar`| `dtar` |
 | `snapshotMd5Verify` | [Optional] Defines whether the driver should do md5sum check on the snapshot. Ensures that the snapshot is not corrupt but reduces performance. Default is `false` | `true` |
 | `exaFS` | Same parameter as in storage class. If the original volume was created using storage class parameter for `exaFS` this MUST match the value of storage class. | `10.3.3.200@tcp:/csi-fs` |
 | `mountPoint` | Same parameter as in storage class. If the original volume was created using storage class parameter for `mountPoint` this MUST match the value of storage class. | `/exa-csi-mnt` |
@@ -690,7 +706,7 @@ kubectl apply -f examples/nginx-from-snapshot.yaml
 
 Exascaler CSI driver supports 2 snapshot modes: `tar` or `dtar`.
 Note: Both modes consume large amounts of memory for large snapshots, so configure the driver limits accordingly.
-Default mode is `tar`.
+Default mode is `dtar`.
 
 ### Encryption
 Limitations:
@@ -739,7 +755,13 @@ echo "pass1" | fscrypt encrypt /exa-mount/static-enc --protector=/exa-mount:$pro
 ### KMIP Integration
 The Exascaler CSI driver supports integration with KMIP (Key Management Interoperability Protocol) compliant Key Management Services for encryption key retrieval. 
 
-> **Note:** Supports SecretData Object of type Password from KMIP server.
+> **Note:** Supports both **SecretData** (standard KMIP servers) and **SymmetricKey** (Cosmian KMIP servers) object types.
+>
+> **Object Type Support:**
+> - **SecretData**: Standard KMIP servers (e.g., PyKMIP, IBM SKLM)
+> - **SymmetricKey**: Cosmian KMIP server
+>
+> The driver automatically detects and handles both object types. No additional configuration required.
 
 ### Configuration
 
@@ -1087,7 +1109,7 @@ spec:
             ssh_pwauth: true
         name: cloudinitvolume
 ```
-> **Note**: Ubuntu 24.04 is used as the base image for the VM. Password for the `ubuntu` user is `ubuntu`, that is provided as sha512 hash. 
+> **Note**: Ubuntu 24.04 is used as the base image for the VM. Password for the `ubuntu` user is `ubuntu`, that is provided as sha512 hash.
 
 VM created will be in stopped state. You can start the VM using `virtctl`.
 ```bash
