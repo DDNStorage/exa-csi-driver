@@ -4,18 +4,49 @@ metadata:
   name: lustre-ci-dockerfile
 data:
   dockerfile: |
-      FROM image-registry.openshift-image-registry.svc:5000/openshift-kmm/builder-base:latest
+      # DTK_AUTO must be declared before the first FROM so KMM can
+      # substitute the Driver Toolkit image for THIS node's kernel.
+      ARG DTK_AUTO
+
+      # builder-base is used only as a source of the Lustre tarball and
+      # RHSM entitlements. Do not FROM it for the compile — after a
+      # cluster upgrade its kernel-devel still matches the old DTK.
+      FROM image-registry.openshift-image-registry.svc:5000/openshift-kmm/builder-base:latest AS src
+
+      FROM ${DTK_AUTO}
       ARG KERNEL_VERSION
       WORKDIR /build/
       ENV SMDEV_CONTAINER_OFF=1
+
+      COPY --from=src /etc/pki/entitlement /etc/pki/entitlement
+      COPY --from=src /source/lustre-client.tar.gz /source/lustre-client.tar.gz
+
+      RUN dnf install -y gcc flex bison python3 python3-devel python3-setuptools \
+          elfutils-libelf-devel keyutils-libs keyutils-libs-devel libmount-devel libyaml-devel json-c-devel \
+          rpm-build kernel-rpm-macros kernel-abi-stablelists libselinux-devel libtool sg3_utils \
+          --enablerepo codeready-builder-for-rhel-9-x86_64-rpms --enablerepo codeready-builder-for-rhel-9-x86_64-eus-rpms && \
+          dnf clean all
+
+      # RHCOS 9.8 / OCP 4.22 renamed from_timer to timer_container_of.
+      # Lustre configure only defines cfs_from_timer when from_timer exists,
+      # and make rpms rebuilds from a fresh tree — alias it in kernel headers.
+      RUN TIMER_H=/usr/src/kernels/${KERNEL_VERSION}/include/linux/timer.h \
+      && if grep -q '#define timer_container_of' "$$TIMER_H" \
+            && ! grep -q '#define from_timer' "$$TIMER_H"; then \
+           echo "INFO: kernel renamed from_timer to timer_container_of; aliasing from_timer"; \
+           printf '\n#ifndef from_timer\n#define from_timer timer_container_of\n#endif\n' >> "$$TIMER_H"; \
+         fi
 
       RUN cd /source \
       && tar -xvf lustre-client.tar.gz \
       && rm lustre-client.tar.gz \
       && cd lustre-* \
-      && ./configure --with-linux=/usr/src/kernels/$(uname -r) --disable-server \
+      && ./configure --with-linux=/usr/src/kernels/${KERNEL_VERSION} --disable-server \
       && make rpms \
       && rpm -Uvh lustre-client-[0-9]*.rpm kmod-lustre-client-[0-9]*.rpm lustre-client-devel-[0-9]*.rpm lustre-iokit-[0-9]*.rpm
       RUN mkdir -p /opt/lib && \
           cp -r /lib/modules /opt/lib/modules
-      RUN depmod -b /opt
+      # depmod without a version uses uname -r of the build node. During a
+      # mixed-kernel upgrade KMM may schedule this build on a different
+      # kernel than KERNEL_VERSION.
+      RUN depmod -b /opt ${KERNEL_VERSION}

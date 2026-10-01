@@ -8,26 +8,25 @@ spec:
       modprobe:
         moduleName: libcfs
         dirName: /opt
-        # Load libcfs first with explicit parameters
         parameters:
-          - cpu_pattern=""
           - cpu_npartitions=20
         modulesLoadingOrder:
           - libcfs
           - lnet
           - ksocklnd
-        #   - ko2iblnd  # for Infiniband network
+
+      imagePullPolicy: Always
 
       kernelMappings:  # At least one item is required
         # For any other kernel, build the image using the Dockerfile in the my-kmod ConfigMap.
         - regexp: '^.+$'
-          containerImage: "image-registry.openshift-image-registry.svc:5000/openshift-kmm/lustre-client-moduleloader:mofed25.10-v1"
+          containerImage: "image-registry.openshift-image-registry.svc:5000/openshift-kmm/lustre-client-moduleloader:${KERNEL_FULL_VERSION}-mofed"
           build:
             buildArgs:
               - name: MOFED_VERSION
-                value: "25.10-1.2.8.0"
+                value: "26.07-0.7.7.0"
               - name: DOCA_IMAGE_TAG
-                value: "doca3.2.0-25.10-1.2.8.0-2-rhel9.6-amd64"
+                value: "doca3.5.0-26.07-0.7.7.0-0-rhel9.6-amd64"
             baseImageRegistryTLS:
               insecure: false
               insecureSkipTLSVerify: false

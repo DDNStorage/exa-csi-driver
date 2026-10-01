@@ -154,6 +154,9 @@ spec:
               mountPropagation: Bidirectional
             - mountPath: /dev
               name: host-dev
+            - name: pcc-cache-dir
+              mountPath: {{ .Values.node.pccCacheHostPath | default "/csi-pcc" }}
+              mountPropagation: Bidirectional
       volumes:
         - name: socket-dir
           hostPath:
@@ -178,4 +181,8 @@ spec:
           hostPath:
             path: /dev
             type: Directory
+        - name: pcc-cache-dir
+          hostPath:
+            path: {{ .Values.node.pccCacheHostPath | default "/csi-pcc" }}
+            type: DirectoryOrCreate
 ---

@@ -77,7 +77,7 @@ spec:
               secureBoot: false
         ioThreadsPolicy: shared
         machine:
-          type: q35
+          type: virt
         memory:
           guest: 8Gi
         resources:

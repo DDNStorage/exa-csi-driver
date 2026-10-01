@@ -1,4 +1,14 @@
 ---
+# Configures LNet NIDs, then loads ptlrpc/lustre/mgc from this image
+# (modprobe -d /opt). KMM Module lnet only loads libcfs/lnet/ksocklnd.
+#
+# The image must match uname -r (same tag KMM uses for the moduleloader).
+# Change it once on the &lustre-image line. Pin this DS to the current
+# kernel before a canary upgrade; see upgrade/.
+#
+# nodeSelector is AND: kernel pin and lnet.ready. worker-canary affinity
+# unschedules this DS so preStop can umount and lustre_rmmod.
+# updateStrategy OnDelete.
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -7,69 +17,212 @@ spec:
   selector:
     matchLabels:
       name: lnet-configuration
+  updateStrategy:
+    type: OnDelete
   template:
     metadata:
       labels:
         name: lnet-configuration
     spec:
       nodeSelector:
-        kmm.node.kubernetes.io/openshift-kmm.lnet.ready: 
+        feature.node.kubernetes.io/kernel-version.full: "5.14.0-570.129.1.el9_6.x86_64"
+        node-role.kubernetes.io/worker: ""
+        kmm.node.kubernetes.io/openshift-kmm.lnet.ready: ""
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/worker-canary
+                    operator: DoesNotExist
+      terminationGracePeriodSeconds: 120
       hostNetwork: true
+      # hostNetwork uses the node's resolv.conf; without this,
+      # kubernetes.default.svc does not resolve.
+      dnsPolicy: ClusterFirstWithHostNet
+      priorityClassName: system-node-critical
       tolerations:
         - effect: NoSchedule
           key: node-role.kubernetes.io/master
       serviceAccount: kmm-operator-module-loader
       serviceAccountName: kmm-operator-module-loader
+      initContainers:
+      - name: configure-lnet
+        image: &lustre-image "image-registry.openshift-image-registry.svc:5000/openshift-kmm/lustre-client-moduleloader:5.14.0-570.129.1.el9_6.x86_64"
+        command:
+          - /bin/sh
+          - -c
+          - |
+            set -e
+            echo "=== Waiting for LNet kernel modules (loaded by KMM Module lnet) ==="
+            REQUIRED_MODULES="libcfs lnet ksocklnd"
+            MAX_WAIT=300
+            WAITED=0
+            ALL_LOADED=false
+            while [ "$WAITED" -lt "$MAX_WAIT" ]; do
+              ALL_LOADED=true
+              MISSING=""
+              for module in $REQUIRED_MODULES; do
+                if ! lsmod | grep -q "^${module} "; then
+                  ALL_LOADED=false
+                  MISSING="$MISSING $module"
+                fi
+              done
+              if [ "$ALL_LOADED" = "true" ]; then
+                echo "INFO: All required modules loaded"
+                break
+              fi
+              echo "Waiting for modules:$MISSING (${WAITED}/${MAX_WAIT}s)"
+              sleep 2
+              WAITED=$((WAITED + 2))
+            done
+            if [ "$ALL_LOADED" != "true" ]; then
+              echo "ERROR: Required modules not loaded after ${MAX_WAIT}s:$MISSING"
+              exit 1
+            fi
+
+            echo "Configuring LNet: net=${NET_TYPE}, iface_list=${NET_IFACE}"
+            if ! lnetctl lnet configure 2>/dev/null; then
+              if lnetctl net show 2>/dev/null | grep -q "net type"; then
+                echo "LNet already configured (continuing)"
+              else
+                echo "ERROR: Failed to configure LNet"
+                exit 1
+              fi
+            fi
+
+            IFS=',' read -ra IFACES <<< "${NET_IFACE}"
+            IFACE_LIST=""
+            for i in "${!IFACES[@]}"; do
+              IFACE="${IFACES[$i]// /}"
+              IFACE_LIST="${IFACE_LIST}              $i: ${IFACE}\n"
+            done
+
+            # NI tunables only (tcp and o2ib). Do not copy o2ib LND/FMR
+            # keys here — ksocklnd will ignore or reject them.
+            cat >/tmp/lnet.yaml <<EOF
+            net:
+              - net type: ${NET_TYPE}
+                local NI(s):
+                  - interfaces:
+            $(echo -e "${IFACE_LIST}")
+                    tunables:
+                      peer_timeout: ${LNET_PEER_TIMEOUT}
+                      peer_credits: ${LNET_PEER_CREDITS}
+                      peer_buffer_credits: ${LNET_PEER_BUFFER_CREDITS}
+                      credits: ${LNET_CREDITS}
+            EOF
+
+            echo "=== Generated LNet Configuration ==="
+            cat /tmp/lnet.yaml
+            echo "=== Importing Configuration ==="
+            IMPORT_OK=true
+            if ! lnetctl import < /tmp/lnet.yaml; then
+              IMPORT_OK=false
+              echo "WARN: lnetctl import failed (often EEXIST if net already present)"
+            fi
+
+            echo "=== LNet Status ==="
+            lnetctl net show -v
+            if ! lnetctl net show | grep -q "net type: ${NET_TYPE}"; then
+              echo "ERROR: LNet net ${NET_TYPE} not present after configuration"
+              exit 1
+            fi
+
+            MISSING_IFACES=""
+            for IFACE in "${IFACES[@]}"; do
+              IFACE="${IFACE// /}"
+              if ! lnetctl net show | grep -A30 "net type: ${NET_TYPE}" | grep -q "${IFACE}"; then
+                MISSING_IFACES="${MISSING_IFACES} ${IFACE}"
+              fi
+            done
+            if [ -n "${MISSING_IFACES}" ]; then
+              echo "WARN: LNet net ${NET_TYPE} is missing interfaces:${MISSING_IFACES}"
+              if lsmod | grep -qE '^(ptlrpc|lustre|mgc) '; then
+                echo "ERROR: cannot reconfigure LNet; ptlrpc/lustre already loaded"
+                exit 1
+              fi
+              echo "INFO: deleting net ${NET_TYPE} and re-importing"
+              lnetctl net del --net "${NET_TYPE}" || true
+              if ! lnetctl import < /tmp/lnet.yaml; then
+                echo "ERROR: lnetctl import failed after net del"
+                exit 1
+              fi
+              lnetctl net show -v
+              for IFACE in "${IFACES[@]}"; do
+                IFACE="${IFACE// /}"
+                if ! lnetctl net show | grep -A30 "net type: ${NET_TYPE}" | grep -q "${IFACE}"; then
+                  echo "ERROR: interface ${IFACE} still missing after re-import"
+                  exit 1
+                fi
+              done
+            elif [ "${IMPORT_OK}" = "false" ]; then
+              echo "INFO: existing LNet net ${NET_TYPE} already has interfaces ${NET_IFACE}"
+            fi
+            echo "=== LNet configuration complete ==="
+
+            echo "=== Loading Lustre client modules from /opt ==="
+            KERNEL_VERSION=$(uname -r)
+            if [ ! -d "/opt/lib/modules/${KERNEL_VERSION}" ]; then
+              echo "ERROR: this image has no modules for kernel ${KERNEL_VERSION}"
+              echo "ERROR: DS image tag must equal uname -r (KMM moduleloader tag)"
+              ls -d /opt/lib/modules/* 2>/dev/null || echo "ERROR: /opt/lib/modules is empty"
+              exit 1
+            fi
+            # ptlrpc is a dependency of lustre; do not modprobe it by name.
+            for module in lustre mgc; do
+              if lsmod | grep -q "^${module} "; then
+                echo "INFO: ${module} already loaded"
+                continue
+              fi
+              if ! modprobe -d /opt "${module}"; then
+                echo "ERROR: modprobe -d /opt ${module} failed"
+                find /opt/lib/modules/${KERNEL_VERSION} -name "${module}.ko*" || true
+                exit 1
+              fi
+              echo "INFO: ${module} loaded"
+            done
+            lsmod | grep -E "ptlrpc|lustre|mgc"
+            echo "=== Lustre modules loaded ==="
+        env:
+          - name: NET_TYPE
+            value: "tcp"
+          # For multirail, comma-separated interfaces (e.g., "ens192,ens224")
+          - name: NET_IFACE
+            value: "br-ex"
+          - name: LNET_PEER_TIMEOUT
+            value: "180"
+          - name: LNET_PEER_CREDITS
+            value: "32"
+          - name: LNET_PEER_BUFFER_CREDITS
+            value: "0"
+          - name: LNET_CREDITS
+            value: "256"
+        securityContext:
+          allowPrivilegeEscalation: true
+          privileged: true
+          runAsUser: 0
+          seLinuxOptions:
+            type: spc_t
       containers:
       - name: lnet-configuration
-        image: "image-registry.openshift-image-registry.svc:5000/openshift-kmm/lustre-client-moduleloader:5.14.0-570.29.1.el9_6.x86_64"
-        imagePullPolicy: Always
+        image: *lustre-image
+        imagePullPolicy: IfNotPresent
         command:
           - /bin/sh
           - -c
           - |
             trap "sleep 10" TERM
             while true; do sleep 5; done
-        env:
-          - name: NET_TYPE
-            value: "tcp"
-          # For multirail configuration, specify multiple interfaces separated by commas (e.g., "ens192,ens224")
-          - name: NET_IFACE
-            value: "br-ex"
         lifecycle:
-          postStart:
-            exec:
-              command:
-                - /bin/sh
-                - -c
-                - |
-                  echo "Configuring LNet: net=${NET_TYPE}, iface_list=${NET_IFACE}"
-                  # Initialize LNet
-                  lnetctl lnet configure
-                  # Parse comma-separated interface list
-                  IFS=',' read -ra IFACES <<< "${NET_IFACE}"
-                  # Add each interface
-                  for iface in "${IFACES[@]}"; do
-                    # Trim whitespace (just in case)
-                    iface=$(echo "$iface" | xargs)
-                    echo "Adding interface: $iface"
-                    lnetctl net add --net "${NET_TYPE}" --if "${iface}"
-                  done
-                  # Load Lustre modules
-                  modprobe lustre
-                  modprobe mgc
-                  # Show status
-                  echo "=== LNet Status ==="
-                  lnetctl net show -v
           preStop:
             exec:
               command:
                 - /bin/sh
                 - -c
                 - |
-                  echo "Unmounting and cleaning up Lustre"
-                  umount -a -t lustre || true
-                  lustre_rmmod || true
+                  echo "Unmounting Lustre filesystems"
+                  lustre_rmmod
         securityContext:
           allowPrivilegeEscalation: true
           privileged: true

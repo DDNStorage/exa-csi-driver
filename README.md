@@ -26,6 +26,7 @@ Releases can be found here - https://github.com/DDNStorage/exa-csi-driver/releas
 |Exascaler Hot Nodes|GA|>= 2.3.0|>= 1.0.0|>=1.18| Not supported yet|Not supported yet|
 |Compression|GA|>= 2.3.5|>= 1.0.0|>=1.17|>=4.13|>=2.6.0|
 |Encryption|GA|>= 2.3.5|>= 1.0.0|>=1.17| Not supported yet|>=2.6.0|
+|Disable Volume Quota|GA|>= 2.10.0|>= 1.0.0|>=1.18|>=4.13|>=2.6.0|
 |Automated Lustre Module Install|GA|>= 2.9.0|N/A|>=1.24|>=4.13|>=2.9.0|
 
 ## Access Modes support
@@ -45,6 +46,7 @@ Releases can be found here - https://github.com/DDNStorage/exa-csi-driver/releas
 |v4.19|>=v2.6.0|
 |v4.20|>=v2.8.1|
 |v4.21|>=v2.9.0|
+|v4.22|>=v2.10.0|
 
 ## OpenShift
 ### Prerequisites
@@ -72,8 +74,8 @@ cp lustre-2.14.0_ddn214.tar.gz deploy/openshift/lustre-module/lustre-client.tar.
 
 Create and start a build
 ```bash
-oc new-build --binary --name=builder-base
-oc start-build builder-base --from-dir=deploy/openshift/lustre-module/ --follow
+oc new-build -n openshift-kmm --binary --name=builder-base
+oc start-build -n openshift-kmm builder-base --from-dir=deploy/openshift/lustre-module/ --follow
 ```
 This will create a base image with all dependencies.
 
@@ -90,7 +92,7 @@ Run ko2iblnd-mod if you are using Infiniband network
 oc apply -n openshift-kmm -f deploy/openshift/lustre-module/ko2iblnd-mod.yaml
 ```
 
-Make changes to the environment variables in deploy/openshift/lustre-module/lnet-lustre-configuration-ds.yaml (lines 34–38) according to your cluster’s network.
+Make changes to the environment variables in deploy/openshift/lustre-module/lnet-lustre-configuration-ds.yaml according to your cluster’s network.
 ```bash
         env:
           - name: NET_TYPE
@@ -100,11 +102,15 @@ Make changes to the environment variables in deploy/openshift/lustre-module/lnet
 ```
 **Note:** Multirail configuration is supported. To use multiple interfaces, specify them separated by commas (e.g., `"ens192,ens224"`).
 
-Configure lnet and install lustre
+Configure LNet, then load `ptlrpc`/`lustre`/`mgc` from the same DS image
+(`modprobe -d /opt`). The image tag must match `uname -r`. There is no
+KMM Module `lustre`.
 ```bash
 oc apply -n openshift-kmm -f deploy/openshift/lustre-module/lnet-lustre-configuration-ds.yaml
 ```
-Note that this Daemonset should keep running in the cluster. Deleting it will unmount and uninstall lustre on all nodes.
+The LNet DaemonSet should keep running. Deleting it unmounts Lustre and
+runs `lustre_rmmod`. See `deploy/openshift/lustre-module/README.md` for
+the full load order.
 
 ### Installing the driver
 
@@ -127,7 +133,7 @@ oc delete -n openshift-kmm -f deploy/openshift/exascaler-csi-file-driver.yaml
 Remove all lustre modules
 ```bash
 oc delete -n openshift-kmm -f deploy/openshift/lustre-module/lnet-lustre-configuration-ds.yaml
-oc delete module ko2iblnd lnet
+oc delete -n openshift-kmm module ko2iblnd lnet lustre --ignore-not-found
 ```
 
 Delete lustre images
@@ -256,6 +262,18 @@ Pull latest helm chart configuration before installing or upgrading.
 
 - Make any necessary changes to the chart, for example new driver version: `tag: "v2.3.4"` in `deploy/helm-chart/values.yaml`.
 - If upgrading from < v2.8.0 to >= v2.8.0, make sure to increase resources in `deploy/helm-chart/values.yaml` due to mounting done inside the driver container starting from v2.8.0.
+- **Upgrades from v2.9.2 or older to v2.10.0 or newer do not work with `helm upgrade` alone.** Starting in v2.10.0, `CSIDriver.spec.attachRequired` is `true` (it was `false` in earlier versions). Kubernetes treats `spec.attachRequired` as immutable, so the upgrade fails with:
+
+  ```text
+  Error: UPGRADE FAILED: cannot patch "exa.csi.ddn.com" with kind CSIDriver: CSIDriver.storage.k8s.io "exa.csi.ddn.com" is invalid: spec.attachRequired: Invalid value: true: field is immutable
+  ```
+
+  The driver has to be reinstalled. Running application pods that already use EXA volumes keep running, and those volumes stay mounted and accessible. Only the driver pods have to be deleted and reinstalled. Deleting the CSIDriver does not delete existing volumes:
+
+  ```bash
+  kubectl delete csidriver exa.csi.ddn.com
+  helm upgrade -n ${namespace} exascaler-csi-file-driver deploy/helm-chart/
+  ```
 - If metrics exporter is required, make changes to `deploy/helm-chart/values.yaml` according to your environment. refer to [metrics exporter configuration](#metrics-exporter-configuration)
 - Run `helm upgrade -n ${namespace} exascaler-csi-file-driver deploy/helm-chart/`
 
@@ -270,6 +288,12 @@ List of exported metrics:
 
 Each of those metrics reports with 3 labels: "pvc", "storage_class", "exported_namespace".
 These labels can be used to group the metrics by kubernetes storage class and namespace as shown below in [Add Prometheus Rules for StorageClass and Namespace Aggregation](#add-prometheus-rules-for-storageclass-and-namespace-aggregation)
+
+PVCs created with `disableVolumeQuota: "true"` do not get a unique project ID. They share the parent
+directory's project quota, PV has `projectId=inherit` parameter and the volume name uses (`pvc-exa-<uuid>-projectId-inherit`)
+instead of a numeric ID. `lfs quota` has no per-PVC usage for `inherit`, so both `
+exa_csi_pvc_used_bytes` and `exa_csi_pvc_available_bytes` are **0**. `exa_csi_pvc_capacity_bytes` is 
+still the PVC request size.
 
 ```yaml
 metrics:
@@ -478,6 +502,7 @@ parameters:
   mountOptions: ro,noflock
   minProjectId: 10001      # project id range for this storage class
   maxProjectId: 20000
+  disableVolumeQuota: "false"  # Set to "true" to inherit parent directory quota instead of per-volume quota (default: "false"). See examples/disable-volume-quota-sc-pvc-pod.yaml
 ```
 
 #### Example
@@ -622,13 +647,14 @@ If a parameter is available for both config and storage class, storage class par
 | - | `minProjectId` | Minimum project ID number for automatic generation. Only used when projectId is not provided. | 10000 |
 | - | `maxProjectId` | Maximum project ID number for automatic generation. Only used when projectId is not provided. | 4294967295 |
 | - | `generateProjectIdRetries` | Maximum retry count for generating random project ID. Only used when projectId is not provided. | `5` |
+| - | `disableVolumeQuota` | Set to `"true"` to inherit parent directory quota instead of per-volume quota. Volume name includes `-projectId-inherit` suffix. See `examples/disable-volume-quota-sc-pvc-pod.yaml` | `"false"` |
 | `zone` | `zone`        | Topology zone to control where the volume should be created. Should match topology.exa.csi.ddn.com/zone label on node(s). | `us-west` |
 | `v1xCompatible` | - | [Optional] Only used when upgrading the driver from v1.x.x to v2.x.x. Provides compatibility for volumes that were created beore the upgrade. Set it to `true` to point to the Exa cluster that was configured before the upgrade | `false` |
 |`tempMountPoint` | `tempMountPoint` | [Optional] Used when `exaFS` points to a subdirectory that does not exist on Exascaler and will be automatically created by the driver. This parameter sets the directory where Exascaler filesystem will be temporarily mounted to create the subdirectory. | `/tmp/exafs-mnt` |
-| `volumeDirPermissions` | `volumeDirPermissions` | [Optional] Defines file permissions for mounted volumes. | `0777` |
+| `volumeDirPermissions` | `volumeDirPermissions` | [Optional] Unix octal mode applied to mounted volumes via chmod (supports setuid/setgid/sticky, e.g. `1777`). If unset, the driver does not chmod the mount. (Changed in v2.10.0, previous versions used default `0750`) | `0750` |
 | - | `encryption` | If enabled, volumes will be encrypted using `fscrypt`. | `false` |
 | `hotNodes` | `hotNodes` | Determines whether `HotNodes` feature should be used. This feature can only be used by the driver when Hot Nodes (PCC) service is disabled and not used manually on the kubernetes workers. HotNodes cannot be used with encryption and will be ignored if `encryption: true` | `false` |
-| `pccCache` | `pccCache` | Directory for cached files of the file system. Note that lpcc does not recognize directories with a trailing slash (“/” at the end). | `/csi-pcc` |
+| `pccCache` | `pccCache` | Directory for cached files of the file system. Note that lpcc does not recognize directories with a trailing slash (“/” at the end). **Must match (or be a subdirectory of) the DaemonSet's `pcc-cache-dir` hostPath volume** (`node.pccCacheHostPath` Helm value, default `/csi-pcc`), otherwise the cache is created inside the container's own filesystem instead of a host-visible mount and PCC attach fails (`NodeStageVolume` will now reject this with a `FailedPrecondition` error). | `/csi-pcc` |
 | `pccAutocache` | `pccAutocache` | Condition for automatic file attachment (caching) | `projid={500}` |
 | `pccPurgeHighUsage` | `pccPurgeHighUsage` | If the disk usage of cache device is higher than high_usage, start detaching the files. Defaults to 90 (90% disk/inode usage). | `90` |
 | `pccPurgeLowUsage` | `pccPurgeLowUsage` | If the disk usage of cache device is lower than low_usage, stop detaching the files. Defaults to 75 (75% disk/inode usage). | `70` |
@@ -640,6 +666,29 @@ If a parameter is available for both config and storage class, storage class par
 | - | `snapshotCompression` | Defines whether compression should be used when creating snapshots. Only usable with `tar`, not supported with `dtar`. Do not use if creation speed is more important than space. Default is "false". | `false` |
 | - | `configName` | Config entry name to use from the config map | `exa1` |
 | - | `createStaticDir` | Set to `true` for the driver to automatically create volume directory for static provisioned volumes if it does not exist. Should be passed in `volumeAttributes` in `PersistentVolume` definition. | `false` |
+
+**Note on `pccCache` / `node.pccCacheHostPath`:** simply pointing this at an arbitrary host directory does not produce a working cache. The host path must be backed by a filesystem mounted with the `prjquota` option and created with the `quota,project` features, since PCC relies on project quotas. For example, to back it with a loop device:
+
+```bash
+# Create dirs for future device and for mount point
+sudo mkdir -p /cdevice
+sudo mkdir -p /csi-pcc
+
+# Create image file
+sudo dd if=/dev/zero of=/cdevice/cache.img bs=1M count=1000 status=progress conv=fsync
+
+# Use this image as loop device
+LOOPDEV=$(sudo losetup -fP --show /cdevice/cache.img)
+echo "Using $LOOPDEV"
+
+# Make filesystem with needed features
+sudo mkfs.ext4 -O quota,project "$LOOPDEV"
+
+# Mount loop device with prjquota
+sudo mount -o prjquota "$LOOPDEV" /csi-pcc
+```
+
+Then set `node.pccCacheHostPath` (Helm value) to this mount point (e.g. `/csi-pcc`), and set `pccCache` to that path or a subdirectory of it.
 
 #### _PersistentVolumeClaim_ (pointing to created _PersistentVolume_)
 
@@ -716,6 +765,7 @@ Limitations:
 - If you are planning to use volumes from more than one Exascaler Filesystem on a single worker node, then the encryption does not work in the current release.
 - Encryption cannot be used with compression enabled.
 - If both encryption and HotNodes are enabled, only encryption is applied.
+- Encryption is applied to the `exaFS` directory itself, not to each volume directory created by `CreateVolume`. Every volume that uses the same `exaFS` path shares one encryption domain and one passphrase. `fscrypt` also refuses to encrypt a non-empty directory, so pointing `exaFS` at a shared directory that already has content makes `CreateVolume` fail and the PVC stay Pending.
 
 To use encrypted volumes, first create a secret with a passphrase.
 ```bash
@@ -738,6 +788,9 @@ parameters:
   csi.storage.k8s.io/node-stage-secret-namespace: default
   csi.storage.k8s.io/controller-expand-secret-name: exa-csi-sc1
   csi.storage.k8s.io/controller-expand-secret-namespace: default
+  # Dedicated empty path. Encryption is applied to this directory, not per volume.
+  exaFS: 192.168.5.1@tcp:/fs/enc-vol-1
+  mountPoint: /exaFS
   encryption: "true"
 ```
 
@@ -986,6 +1039,50 @@ spec:
       nodeName: "node1"
 ```
 This will ensure that controller driver is running on management node.
+
+### Multi-tenancy how-to
+
+The EXA CSI driver supports running the driver in a multi-tenant environment.
+
+The EXA CSI driver can be installed in an isolated tenant env (jailed). In this configuration,
+the whole k8s cluster (every node's IP, including the controller pod's node) is restricted by an
+ExaScaler nodemap entry to a tenant subdirectory, so the server enforces that restriction on every
+mount from those nodes — including the controller's `CreateVolume`/`DeleteVolume` mounts.
+`managementExaFs` is not needed in this configuration; the nodemap alone jails the controller.
+
+Steps to achieve this:
+
+1. On EXA, use the `emf` command to create a nodemap entry restricting all of the k8s cluster's
+   node IPs to the tenant's assigned subdirectory. So a compromised or misconfigured controller
+   pod cannot bypass the subdirectory restriction as root.
+2. On the k8s cluster, create a secret and StorageClass per tenant, without setting
+   `managementExaFs` in the secret, as shown in
+   [Configuring the driver to use with ExaScaler nodemap](#configuring-the-driver-to-use-with-exascaler-nodemap) above.
+3. Tenants request storage via their tenant-specific StorageClass:
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tenant1-pvc
+  namespace: tenant1
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: exascaler-csi-file-driver-sc-1
+  resources:
+    requests:
+      storage: 100Gi
+```
+
+Mount flow: the controller mounts the ExaScaler filesystem to perform `CreateVolume`/
+`DeleteVolume`; the node mounts the `exaFS` path from the StorageClass/PV and bind-mounts the
+volume into the pod. The ExaScaler nodemap restricts what path both the controller's and the
+node's mounts actually resolve to for that tenant's nodes.
+
+To verify tenant isolation: confirm the nodemap entry maps the tenant's nodes only to their
+subdirectory, then check `/proc/mounts` on the controller and node plugin pods to confirm they
+mounted the tenant subdirectory rather than the filesystem root.
 
 ### Setting Exa parameters for the mountpoint.
 The driver allows parameters to be passed through `exaParams` in the storage class parameters, which are then applied using `lctl set_param`.

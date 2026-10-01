@@ -1,0 +1,24 @@
+# Canary MachineConfigPool. Inherits every MachineConfig that targets
+# role=worker, plus any with role=worker-canary.
+#
+# One node ∈ one MCP. Keep node-role.kubernetes.io/worker on the canary
+# node (the LNet DS still selects it) and patch mcp/worker so it no
+# longer matches worker-canary — see README.md.
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfigPool
+metadata:
+  name: worker-canary
+  labels:
+    machineconfiguration.openshift.io/role: worker-canary
+    pools.operator.machineconfiguration.openshift.io/worker-canary: ""
+spec:
+  machineConfigSelector:
+    matchExpressions:
+      - key: machineconfiguration.openshift.io/role
+        operator: In
+        values:
+          - worker
+          - worker-canary
+  nodeSelector:
+    matchLabels:
+      node-role.kubernetes.io/worker-canary: ""
