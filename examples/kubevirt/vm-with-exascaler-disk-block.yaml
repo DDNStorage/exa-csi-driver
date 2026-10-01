@@ -3,7 +3,6 @@ kind: Namespace
 metadata:
   name: vm-space
 ---
-
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
@@ -11,10 +10,8 @@ metadata:
 provisioner: exa.csi.ddn.com
 allowVolumeExpansion: true
 parameters:
-  exaFS: 172.25.80.50@tcp:172.25.80.51@tcp:172.25.80.52@tcp:172.25.80.53@tcp:/sfa18k03/ds
+  exaFS: 172.25.80.50@tcp:172.25.80.51@tcp:172.25.80.52@tcp:172.25.80.53@tcp:/sfa18k03/vm
   mountPoint: /exaFS
-
-
 ---
 apiVersion: kubevirt.io/v1
 kind: VirtualMachine
@@ -31,6 +28,8 @@ spec:
   - metadata:
       name: vm-kubevirt-ubuntu-24-dv-small-block
       namespace: vm-space
+      annotations:
+        cdi.kubevirt.io/storage.bind.immediate.requested: "true"
     spec:
       pvc:
         accessModes:
@@ -49,11 +48,7 @@ spec:
       domain:
         cpu:
           cores: 4
-          # dedicatedCpuPlacement: true
-          # isolateEmulatorThread: true
           model: host-passthrough
-          # numa:
-          #   guestMappingPassthrough: {}
           sockets: 1
           threads: 1
         devices:
@@ -62,20 +57,21 @@ spec:
           autoattachSerialConsole: true
           blockMultiQueue: true
           disks:
-          - dedicatedIOThread: false
-            disk:
-              bus: virtio
-            name: containervolume
           - disk:
               bus: virtio
-            name: cloudinitvolume          
+            name: rootdisk
+            bootOrder: 1
+          - disk:
+              bus: virtio
+            name: cloudinitdisk
+            bootOrder: 2
           interfaces:
           - bridge: {}
             name: default
             ports:
             - name: ssh
               port: 22
-              protocol: TCP            
+              protocol: TCP
           rng: {}
         firmware:
           bootloader:
@@ -83,27 +79,25 @@ spec:
               secureBoot: false
         ioThreadsPolicy: shared
         machine:
-          type: q35
+          type: virt
         memory:
           guest: 8Gi
-          # hugepages:
-          #   pageSize: 1Gi
         resources:
           limits:
-            cpu: "8"            
+            cpu: "8"
             ephemeral-storage: 5Gi
-            memory: 12Gi            
+            memory: 12Gi
           requests:
-            cpu: "3"            
-            memory: 10Gi            
+            cpu: "3"
+            memory: 10Gi
       evictionStrategy: External
       networks:
       - name: default
-        pod: {}            
+        pod: {}
       volumes:
-      - name: containervolume
-        persistentVolumeClaim:
-          claimName: vm-kubevirt-ubuntu-24-dv-small-block
+      - name: rootdisk
+        dataVolume:
+          name: vm-kubevirt-ubuntu-24-dv-small-block
       - cloudInitConfigDrive:
           userData: |
             #cloud-config
@@ -114,4 +108,4 @@ spec:
                 passwd: "$6$ud79cjYHUNLFvtI6$DEDpdCYPtm34DpviBfYdMqCqyqewUrfkju/dJrf22Sqkl5/TZXWyaPOuQdUdm66CTVpLi8y5e8b1KS5wlsNM6."
                 lock_passwd: false
             ssh_pwauth: true
-        name: cloudinitvolume
+        name: cloudinitdisk

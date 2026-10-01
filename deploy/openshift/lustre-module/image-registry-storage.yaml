@@ -1,0 +1,40 @@
+# OpenShift internal registry backing store. Pin hostname to the worker
+# that holds /var/lib/registry. After apply, chown that directory to
+# 1000310000 (the registry uid) and point configs.imageregistry at this
+# claim (README §3).
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: image-registry-storage
+spec:
+  capacity:
+    storage: 200Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  hostPath:
+    path: /var/lib/registry
+    type: DirectoryOrCreate
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - hw-worker-2
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: image-registry-storage
+  namespace: openshift-image-registry
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 200Gi
+  storageClassName: ""
+  volumeName: image-registry-storage

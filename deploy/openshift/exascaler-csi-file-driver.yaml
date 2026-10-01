@@ -16,7 +16,7 @@ kind: CSIDriver
 metadata:
   name: exa.csi.ddn.com
 spec:
-  attachRequired: false
+  attachRequired: true
   podInfoOnMount: false
 ---
 
@@ -366,7 +366,7 @@ spec:
         volumeMounts:
           - name: socket-dir
             mountPath: /csi/
-      - image: quay.io/ddn/exascaler-openshift-file-driver:v2.9.2
+      - image: quay.io/ddn/exascaler-openshift-file-driver:v2.10.0
         imagePullPolicy: Always
         args:
           - --nodeid=$(KUBE_NODE_NAME)
@@ -458,7 +458,7 @@ spec:
           securityContext:
             privileged: true
             allowPrivilegeEscalation: true
-          image: quay.io/ddn/exascaler-openshift-file-driver:v2.9.2
+          image: quay.io/ddn/exascaler-openshift-file-driver:v2.10.0
           imagePullPolicy: Always
           args:
             - --nodeid=$(KUBE_NODE_NAME)

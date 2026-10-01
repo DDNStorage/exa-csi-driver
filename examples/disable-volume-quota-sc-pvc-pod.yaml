@@ -1,0 +1,137 @@
+# ============================================================================
+# Exascaler CSI Driver - Disable Volume Quota Example
+# ============================================================================
+# This example demonstrates using the disableVolumeQuota parameter to create
+# volumes without Lustre project ID and quota assignment.
+#
+# Use Case:
+# - When you want volumes to use the filesystem's total capacity
+# - When Lustre quota enforcement is not required
+# - For temporary/scratch workloads
+#
+# Behavior:
+# - Volume created as plain directory (no project ID assigned)
+# - No quota limits enforced at volume level
+# - Storage capacity limited by filesystem total, not PVC request
+# - Volume name includes sentinel "-projectId-inherit" suffix
+# ============================================================================
+
+# --------------------------------------
+# Storage Class with Quota Disabled
+# --------------------------------------
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: exascaler-csi-no-quota
+provisioner: exa.csi.ddn.com
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+parameters:
+  # REQUIRED: Set to "true" to disable volume-level quota (case-sensitive)
+  # Valid values: "true" or "false"
+  # Default: "false" (quota enabled)
+  disableVolumeQuota: "true"
+  
+  # Optional: Override default bind mount behavior
+  # bindMount: "true"
+  
+  # Optional: Set custom UID for volume mount
+  # exaMountUid: "1001"
+
+---
+
+# ------------------------------------------------
+# Persistent Volume Claim
+# ------------------------------------------------
+# Note: The requested storage size (10Gi) is not enforced when 
+# disableVolumeQuota is "true". The volume uses the filesystem's 
+# total capacity instead.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-no-quota-example
+spec:
+  storageClassName: exascaler-csi-no-quota
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+
+# ------------------------------------------------
+# Example Pod using the Volume
+# ------------------------------------------------
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-no-quota
+spec:
+  containers:
+    - name: nginx
+      image: nginx
+      imagePullPolicy: IfNotPresent
+      ports:
+        - containerPort: 80
+          protocol: TCP
+      volumeMounts:
+        - mountPath: /data
+          name: exascaler-data
+  volumes:
+    - name: exascaler-data
+      persistentVolumeClaim:
+        claimName: pvc-no-quota-example
+        readOnly: false
+
+# ============================================================================
+# Usage Instructions:
+# ============================================================================
+# 1. Apply this example:
+#    kubectl apply -f disable-volume-quota-sc-pvc-pod.yaml
+#
+# 2. Verify PVC is bound:
+#    kubectl get pvc pvc-no-quota-example
+#
+# 3. Check volume name contains sentinel 'inherit':
+#    kubectl get pvc pvc-no-quota-example -o jsonpath='{.spec.volumeName}'
+#    Expected: pvc-exa-<uuid>-projectId-inherit
+#
+# 4. Verify pod is running:
+#    kubectl get pod nginx-no-quota
+#
+# 5. Test write/read:
+#    kubectl exec nginx-no-quota -- sh -c 'echo "test data" > /data/test.txt'
+#    kubectl exec nginx-no-quota -- cat /data/test.txt
+#
+# 6. Clean up:
+#    kubectl delete -f disable-volume-quota-sc-pvc-pod.yaml
+#
+# ============================================================================
+# Comparison: Quota Enabled vs. Disabled
+# ============================================================================
+# 
+# With Quota Enabled (default: disableVolumeQuota: "false"):
+# - Volume Name:      pvc-exa-<uuid>-projectId-<number>
+# - Lustre Project:   Assigned (non-zero ID)
+# - Quota Enforced:   YES (lfs setquota called)
+# - Capacity Limit:   PVC request (e.g., 10Gi)
+# - Use Case:         Production workloads with capacity control
+#
+# With Quota Disabled (disableVolumeQuota: "true"):
+# - Volume Name:      pvc-exa-<uuid>-projectId-inherit
+# - Lustre Project:   Not assigned (Project ID 0)
+# - Quota Enforced:   NO (lfs setquota skipped)
+# - Capacity Limit:   Filesystem total capacity
+# - Use Case:         Scratch/temp workloads, testing, no quota needed
+#
+# ============================================================================
+# Important Notes:
+# ============================================================================
+# - The disableVolumeQuota setting is determined at volume CREATION time
+# - Changing the parameter in StorageClass affects only NEW volumes
+# - Existing volumes retain their original quota setting
+# - Parameter is CASE-SENSITIVE: only "true" or "false" are valid
+# - Invalid values (e.g., "True", "yes", "1") are rejected
+# - Default behavior when parameter is omitted: quota ENABLED
+# ============================================================================

@@ -19,7 +19,7 @@ kind: CSIDriver
 metadata:
   name: exa.csi.ddn.com
 spec:
-  attachRequired: false
+  attachRequired: true
   podInfoOnMount: false
   fsGroupPolicy: File
 ---
@@ -65,7 +65,7 @@ rules:
     verbs: ['get', 'list', 'watch']
   - apiGroups: ['storage.k8s.io']
     resources: ['volumeattachments']
-    verbs: ['get', 'list', 'watch', 'update']
+    verbs: ['get', 'list', 'watch', 'update', 'patch']
   - apiGroups: ['storage.k8s.io']
     resources: ['volumeattachments/status']
     verbs: ['get', 'list', 'watch', 'update', 'patch']
@@ -273,7 +273,7 @@ spec:
             capabilities:
               add: ['SYS_ADMIN']
             allowPrivilegeEscalation: true
-          image: quay.io/ddn/exascaler-csi-file-driver:v2.9.2
+          image: quay.io/ddn/exascaler-csi-file-driver:v2.10.0
           imagePullPolicy: Always
           args:
             - --nodeid=$(KUBE_NODE_NAME)
@@ -398,7 +398,7 @@ spec:
             capabilities:
               add: ['SYS_ADMIN']
             allowPrivilegeEscalation: true
-          image: quay.io/ddn/exascaler-csi-file-driver:v2.9.2
+          image: quay.io/ddn/exascaler-csi-file-driver:v2.10.0
           imagePullPolicy: Always
           args:
             - --nodeid=$(KUBE_NODE_NAME)
@@ -422,6 +422,9 @@ spec:
               mountPropagation: Bidirectional
             - mountPath: /dev
               name: host-dev
+            - name: pcc-cache-dir
+              mountPath: /csi-pcc
+              mountPropagation: Bidirectional
       volumes:
         - name: socket-dir
           hostPath:
@@ -446,4 +449,14 @@ spec:
           hostPath:
             path: /dev
             type: Directory
+        # Host path backing the PCC (HotNodes) cache directory. Must match (or be
+        # a parent of) the `pccCache` StorageClass/volume parameter used by any
+        # StorageClass deployed against this DaemonSet, so the host-kernel
+        # Lustre PCC module can see the cache created by the driver. If you
+        # change `pccCache` in a StorageClass, update `path` below (and the
+        # volumeMounts.mountPath above) to match.
+        - name: pcc-cache-dir
+          hostPath:
+            path: /csi-pcc
+            type: DirectoryOrCreate
 ---

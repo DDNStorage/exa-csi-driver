@@ -6,7 +6,7 @@ volumeNamePrefix: "pvc-exa"
 
 image:
   repository: "quay.io/ddn/exascaler-csi-file-driver"
-  tag: v2.9.2
+  tag: v2.10.0
   pullPolicy: "Always"
   # Overrides the image tag whose default is the chart appVersion.
   resources:
@@ -62,6 +62,10 @@ controller:
 node:
   nodeSelector: {}
   tolerations: []
+  # Host path backing the PCC (HotNodes) cache directory. Must match (or be
+  # a parent of) the `pccCache` StorageClass/volume parameter so the
+  # host-kernel Lustre PCC module can see the cache created by the driver.
+  pccCacheHostPath: /csi-pcc
 
 # exascaler driver specific config
 config:
@@ -86,7 +90,7 @@ metrics:
   enabled: false
   exporter:
     repository: quay.io/ddn/exa-csi-metrics-exporter
-    tag: v2.9.2
+    tag: v2.10.0
     pullPolicy: Always
     containerPort: "9200"
     servicePort: "32666"

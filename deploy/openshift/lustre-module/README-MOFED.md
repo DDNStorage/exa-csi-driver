@@ -1,216 +1,194 @@
-# Lustre Client with MOFED/InfiniBand Support on OpenShift
+# Lustre client modules on OpenShift (MOFED / InfiniBand)
 
-This guide explains how to deploy Lustre client modules with MOFED (Mellanox OFED) support for InfiniBand connectivity on OpenShift.
+Kernel Module Management (KMM) Module `lnet` loads `libcfs`, `lnet`, and
+`ksocklnd`. Module `ko2iblnd` loads `ko2iblnd`. DaemonSet
+`lnet-configuration` then configures LNet NIDs and loads `ptlrpc`,
+`lustre`, and `mgc` from the same moduleloader image (`modprobe -d /opt`).
+
+In-cluster builds compile MOFED and Lustre against `${DTK_AUTO}` (the
+Driver Toolkit for the node's kernel) so `ko2iblnd` symbol CRCs match the
+MOFED drivers on the node. Image `builder-base` supplies only the Lustre
+tarball and RHSM entitlements. Rebuild `builder-base` when the tarball or
+entitlements change, or when `builder-base:latest` is missing from the
+in-cluster registry.
+
+KMM tags and pushes the moduleloader to
+`image-registry.openshift-image-registry.svc:5000/openshift-kmm/lustre-client-moduleloader:${KERNEL_FULL_VERSION}-mofed`.
+The DaemonSet image tag must match that string. Modules have no
+`spec.imageRepoSecret`.
+
+For TCP, see [README.md](README.md).
+To upgrade an existing deployment and roll workers onto a new kernel,
+see [upgrade/README.md](upgrade/README.md). Use the MOFED ConfigMap,
+Module, and DaemonSet files listed in that document.
 
 ## Prerequisites
 
-Before deploying Lustre client support, ensure the following are configured:
-
-### 1. NVIDIA Network Operator
-- Installed and configured with MOFED drivers
-- MOFED driver pods running on all worker nodes
-- Verify: `oc get pods -n nvidia-network-operator`
-
-### 2. InfiniBand Network Configuration
-**CRITICAL:** InfiniBand interfaces must be configured with IP addresses in the same subnet as your Lustre servers.
-
-- **Interface name**: Identify your IB interface (e.g., `ibs1f1`, `ibP1p1s0f1`)
-- **IP subnet**: Must match Lustre MGS/MDS/OSS network subnet
-- **Configuration methods**:
-  - DHCP on InfiniBand network (recommended for production)
-  - nmstate / NetworkManager
-  - Manual IP assignment
-  - Network Operator IPoIB CNI
-
-**Verification:**
-```bash
-# Check interface has IP in correct subnet
-oc debug node/<node-name> -- chroot /host ip addr show <ib-interface>
-# Example: inet 172.25.81.10/16 scope global ibs1f1
-```
-
-### 3. Lustre Server Configuration
-- **Nodemap access**: Ensure client IP range is added to Lustre server's nodemap
-  ```bash
-  # On MGS server:
-  lctl nodemap_add_range --name <nodemap> --range <client-ip-range>
-  # Example: lctl nodemap_add_range --name exa_servers --range 172.25.81.[10-250]@o2ib
-  ```
-- Verify Lustre filesystem is accessible from client subnet
-
-### 4. Kernel Module Management (KMM)
-- KMM operator installed in `openshift-kmm` namespace
-- Verify: `oc get pods -n openshift-kmm`
-
-## Architecture
-
-The deployment uses a multi-stage build approach:
-
-1. **Stage 1a**: Extract MOFED source from NVIDIA DOCA driver image
-2. **Stage 1b**: Build MOFED 25.10 against target kernel using builder-base (with entitlements)
-3. **Stage 2**: Build Lustre 2.14.0 with o2ib support against the compiled MOFED
-
-This ensures symbol CRCs match between Lustre's `ko2iblnd` module and the MOFED drivers running on nodes.
-
-## Quick Start
-
-Edit lustre-dockerfile-mofed-configmap.yaml with the correct doca driver version
+- NVIDIA Network Operator installed, with MOFED driver pods running on
+  every worker
+- InfiniBand interface on each worker with an IP in the same subnet as
+  the Lustre servers (configure IP before this DaemonSet; this procedure
+  does not assign addresses)
+- Client IP range present in the Lustre server nodemap
+- KMM operator in namespace `openshift-kmm`
+- Node Feature Discovery (NFD), so each worker has
+  `feature.node.kubernetes.io/kernel-version.full`
+- Lustre client tarball `lustre-*.tar.gz` and RHSM entitlement files in
+  this directory
 
 ```bash
-oc get pod -n nvidia-network-operator mofed-rhel9.6-6974f4b749-ds-5qfqt -oyaml | grep doca3
-
-```
-
-
-Create the ConfigMap and build the modules
-
-```bash
-# 1. Build Lustre client image
-oc create -n openshift-kmm -f lustre-dockerfile-mofed-configmap.yaml
-oc apply -n openshift-kmm -f lnet-mod-mofed.yaml
-
-# 2. Deploy kernel modules
-oc apply -n openshift-kmm -f ko2iblnd-mod-mofed.yaml
-
-# 3. Edit and deploy LNet configuration (UPDATE NET_IFACE!)
-vi lnet-lustre-configuration-ds-mofed.yaml
-oc apply -n openshift-kmm -f lnet-lustre-configuration-ds-mofed.yaml
-
-# 4. Verify
+oc get pods -n nvidia-network-operator
 oc get pods -n openshift-kmm
-POD=$(oc get pods -n openshift-kmm -l name=lnet-configuration -o jsonpath='{.items[0].metadata.name}')
-oc exec -n openshift-kmm $POD -- lnetctl net show
+oc debug node/<node-name> -- chroot /host ip addr show <ib-interface>
+ls deploy/openshift/lustre-module/Dockerfile \
+   deploy/openshift/lustre-module/entitlement.pem \
+   deploy/openshift/lustre-module/entitlement-key.pem \
+   deploy/openshift/lustre-module/lustre-*.tar.gz
 ```
 
-## Detailed Deployment Steps
-
-### Step 1: Build the Lustre Client Image and load Lnet Module
+If the entitlement files are missing:
 
 ```bash
-# Create the Dockerfile ConfigMap
-oc create -n openshift-kmm -f lustre-dockerfile-mofed-configmap.yaml
-
-# Deploy the lnet module (triggers the build)
-oc apply -n openshift-kmm -f lnet-mod-mofed.yaml
-
-# Watch the build progress
-oc logs -n openshift-kmm -f $(oc get pods -n openshift-kmm | grep lnet-build | awk '{print $1}')
+oc get secret etc-pki-entitlement -n openshift-config-managed -o json \
+  | jq -r '.data["entitlement.pem"]' | base64 -d \
+  > deploy/openshift/lustre-module/entitlement.pem
+oc get secret etc-pki-entitlement -n openshift-config-managed -o json \
+  | jq -r '.data["entitlement-key.pem"]' | base64 -d \
+  > deploy/openshift/lustre-module/entitlement-key.pem
 ```
 
-The build takes approximately 20-30 minutes as it compiles both MOFED and Lustre from source.
-
-### Step 2: Deploy o2iblnd Kernel Module
-
-Deploy the kernel modules for LNet and InfiniBand support:
+On the MGS, add the client range to the nodemap if it is not already
+present:
 
 ```bash
-# Deploy ko2iblnd module (InfiniBand LNet support)
-oc apply -n openshift-kmm -f ko2iblnd-mod-mofed.yaml
+lctl nodemap_add_range --name <nodemap> --range <client-ip-range>
 ```
 
-Wait for modules to load on all nodes:
+## Deploy
+
+Run the following from the repository root (`exascaler-csi-file-driver`).
+
+### 1. Match the DOCA / MOFED versions
+
+Set `DOCA_IMAGE_TAG` and `MOFED_VERSION` in `lnet-mod-mofed.yaml`
+before applying the ConfigMap.
 
 ```bash
-# Check module status
+POD=$(oc get pods -n nvidia-network-operator -o name | grep mofed | head -1)
+
+# DOCA_IMAGE_TAG: last path component of the image
+oc get -n nvidia-network-operator "$POD" \
+  -o jsonpath='{.spec.containers[*].image}{"\n"}'
+
+# MOFED_VERSION: strip the MLNX_OFED_LINUX- prefix and trailing colon
+oc exec -n nvidia-network-operator "$POD" -- ofed_info -s
+```
+
+### 2. Build `builder-base`
+
+```bash
+oc get bc -n openshift-kmm builder-base || \
+  oc new-build -n openshift-kmm --binary --name=builder-base --strategy=docker
+
+oc start-build -n openshift-kmm builder-base \
+  --from-dir=deploy/openshift/lustre-module/ --follow
+```
+
+Confirm the image pulls:
+
+```bash
+oc run pull-builder -n openshift-kmm --restart=Never --rm -it \
+  --image=image-registry.openshift-image-registry.svc:5000/openshift-kmm/builder-base:latest \
+  --overrides='{"spec":{"serviceAccountName":"kmm-operator-module-loader"}}' \
+  --command -- echo ok
+```
+
+The command must print `ok`.
+
+### 3. Apply the KMM Dockerfile ConfigMap
+
+```bash
+oc apply -n openshift-kmm -f deploy/openshift/lustre-module/lustre-dockerfile-mofed-configmap.yaml
+```
+
+The first MOFED + Lustre build typically takes 20–30 minutes.
+
+### 4. In-cluster registry
+
+KMM pushes the moduleloader to the OpenShift internal registry. Modules
+have no `spec.imageRepoSecret`.
+
+Set `kubernetes.io/hostname` in
+`image-registry-storage.yaml` to the worker that will hold
+`/var/lib/registry`, then:
+
+```bash
+oc apply -f deploy/openshift/lustre-module/image-registry-storage.yaml
+oc debug node/<registry-worker> -- chroot /host \
+  chown -R 1000310000:1000310000 /var/lib/registry
+oc patch configs.imageregistry.operator.openshift.io cluster --type=merge -p '{
+  "spec": {
+    "replicas": 1,
+    "rolloutStrategy": "Recreate",
+    "nodeSelector": {
+      "kubernetes.io/hostname": "<registry-worker>",
+      "kubernetes.io/os": "linux"
+    },
+    "storage": {
+      "pvc": { "claim": "image-registry-storage" }
+    }
+  }
+}'
+oc get pvc image-registry-storage -n openshift-image-registry
+```
+
+### 5. Apply Modules `lnet` and `ko2iblnd`
+
+If `cpu_npartitions` is required, set it in `lnet-mod-mofed.yaml` to a
+value no greater than the node's vCPU count. Module `ko2iblnd` selects
+`network.nvidia.com/operator.mofed.wait: "false"` so KMM loads it after
+NVIDIA MOFED (`mlx_compat` / `ib_core`).
+
+```bash
+oc apply -n openshift-kmm -f deploy/openshift/lustre-module/lnet-mod-mofed.yaml
+oc apply -n openshift-kmm -f deploy/openshift/lustre-module/ko2iblnd-mod-mofed.yaml
 oc get module -n openshift-kmm
 ```
 
-### Step 3: Verify Kernel Modules
-
-Once the build completes, verify the modules are loaded:
+Confirm the LNet stack on a worker:
 
 ```bash
-# Check module status
-oc get module lnet -n openshift-kmm
-
-# Verify on a worker node
-oc debug node/<node-name> -- chroot /host lsmod | grep -E "lnet|o2iblnd"
+oc debug node/<node-name> -- chroot /host lsmod | grep -E "libcfs|lnet|ksocklnd|ko2iblnd"
 ```
 
-Expected output:
-```
-ko2iblnd              266240  0
-ksocklnd              200704  0
-lnet                  724992  2 ko2iblnd,ksocklnd
-libcfs                589824  3 lnet,ko2iblnd,ksocklnd
-```
+### 6. Edit and apply DaemonSet `lnet-configuration`
 
-### Step 4: Configure LNet Network Settings
+In `lnet-lustre-configuration-ds-mofed.yaml`:
 
-Edit `lnet-lustre-configuration-ds-mofed.yaml` to specify your InfiniBand interface:
+- `&lustre-image`: `…/lustre-client-moduleloader:<uname -r>-mofed`
+- `feature.node.kubernetes.io/kernel-version.full`: worker `uname -r`
+- `kmm.node.kubernetes.io/openshift-kmm.lnet.ready`
+- `kmm.node.kubernetes.io/openshift-kmm.ko2iblnd.ready`
+- `network.nvidia.com/operator.mofed.wait: "false"`
+- `NET_TYPE`: `o2ib`
+- `NET_IFACE`: InfiniBand interface that already has an IP
 
 ```bash
-# Edit the DaemonSet configuration
-vi lnet-lustre-configuration-ds-mofed.yaml
+oc apply -n openshift-kmm -f deploy/openshift/lustre-module/lnet-lustre-configuration-ds-mofed.yaml
+oc rollout status -n openshift-kmm ds/lnet-configuration
 ```
 
-Update the environment variables:
-
-```yaml
-env:
-  - name: NET_TYPE
-    value: "o2ib"           # Network type (o2ib for InfiniBand)
-  - name: NET_IFACE
-    value: "ibs1f1"         # YOUR InfiniBand interface name
-```
-
-**Important:**
-- Replace `ibs1f1` with your actual InfiniBand interface name
-- The interface must already have an IP address configured (see Prerequisites)
-- The IP must be in the same subnet as your Lustre servers
-
-### Step 5: Deploy LNet Configuration DaemonSet
+## Verify
 
 ```bash
-oc apply -n openshift-kmm -f lnet-lustre-configuration-ds-mofed.yaml
+oc get ds -n openshift-kmm lnet-configuration
+
+POD=$(oc get pods -n openshift-kmm -l name=lnet-configuration \
+  -o jsonpath='{.items[0].metadata.name}')
+oc logs -n openshift-kmm "$POD" -c configure-lnet
+oc exec -n openshift-kmm "$POD" -- lnetctl net show
+oc debug node/<node-name> -- chroot /host lsmod | grep -E "lnet|ko2iblnd|ptlrpc|lustre|mgc"
 ```
 
-This DaemonSet runs on all worker nodes and:
-1. Configures LNet with the specified network type
-2. Adds the o2ib network using the configured interface
-3. Loads Lustre client modules (lustre, mgc, mdc, etc.)
-4. Runs `depmod` to ensure modules are discoverable
-
-### Step 6: Verify LNet Configuration
-
-```bash
-# Check DaemonSet status
-oc get ds lnet-configuration -n openshift-kmm
-
-# Check init container logs (configuration happens here)
-POD=$(oc get pods -n openshift-kmm -l name=lnet-configuration -o jsonpath='{.items[0].metadata.name}')
-oc logs -n openshift-kmm $POD -c configure-lnet
-
-# Verify LNet is configured
-oc exec -n openshift-kmm $POD -- lnetctl net show
-```
-
-Expected output showing LNet configured with your InfiniBand network:
-```
-net:
-    - net type: lo
-      local NI(s):
-        - nid: 0@lo
-          status: up
-    - net type: o2ib
-      local NI(s):
-        - nid: 172.25.81.11@o2ib
-          status: up
-          interfaces:
-              0: ibs1f1
-```
-
-Verify all Lustre modules are loaded:
-```bash
-oc exec -n openshift-kmm $POD -- lsmod | grep -E "lustre|mgc|lnet"
-```
-
-Expected modules:
-```
-mgc                   110592  0
-lustre               1241088  0
-mdc                   315392  1 lustre
-lov                   401408  2 mdc,lustre
-lmv                   241664  1 lustre
-lnet                  724992  9 osc,ko2iblnd,obdclass,ptlrpc,mgc,ksocklnd,lmv,lustre
-```
+`lnetctl net show` must list the InfiniBand NID as `up`. The CSI node
+DaemonSet waits until `lustre` appears in `/proc/modules`.

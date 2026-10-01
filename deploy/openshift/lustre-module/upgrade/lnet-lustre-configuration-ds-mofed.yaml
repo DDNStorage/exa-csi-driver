@@ -1,46 +1,42 @@
 ---
-# Configures LNet NIDs, then loads ptlrpc/lustre/mgc from this image
-# (modprobe -d /opt). KMM Modules lnet/ko2iblnd only load the LNet stack.
+# Target-kernel LNet DS for a canary OpenShift upgrade (MOFED / o2ib).
+# Apply *alongside* the live DS, not instead of it. See README.md.
 #
-# The image must match uname -r (same tag KMM uses for the moduleloader).
-# Change it once on the &lustre-image line.
-# Note: IP configuration on InfiniBand interfaces must be done
-# by the customer before deploying this DaemonSet (see README-MOFED.md).
+# metadata.name is the target OpenShift minor (DNS label), e.g.
+# lnet-configuration-4.22.1. Do not put uname -r in the name (dots).
 #
-# nodeSelector is AND: kernel pin, lnet.ready, ko2iblnd.ready, and
-# NVIDIA MOFED ready (mofed.wait=false). worker-canary affinity
-# unschedules this DS so preStop can umount and lustre_rmmod.
-# updateStrategy OnDelete.
+# This DS configures LNet then loads ptlrpc/lustre/mgc (modprobe -d /opt),
+# so the image tag must match the *target* uname -r with the -mofed suffix.
+#
+# Selectors are AND: kernel pin, lnet.ready, ko2iblnd.ready, and
+# NVIDIA MOFED ready (mofed.wait=false). No worker-canary exclude:
+# canary nodes must run this DS.
+#
+# Clone of ../lnet-lustre-configuration-ds-mofed.yaml.
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: lnet-configuration
+  name: lnet-configuration-4.22.1
 spec:
   selector:
     matchLabels:
-      name: lnet-configuration
+      name: lnet-configuration-4.22.1
   updateStrategy:
     type: OnDelete
   template:
     metadata:
       labels:
-        name: lnet-configuration
+        name: lnet-configuration-4.22.1
     spec:
       nodeSelector:
         node-role.kubernetes.io/worker: ""
-        feature.node.kubernetes.io/kernel-version.full: "5.14.0-687.13.1.el9_8.x86_64"
+        feature.node.kubernetes.io/kernel-version.full: "5.14.0-687.17.1.el9_8.x86_64"
         kmm.node.kubernetes.io/openshift-kmm.lnet.ready: ""
         kmm.node.kubernetes.io/openshift-kmm.ko2iblnd.ready: ""
         network.nvidia.com/operator.mofed.wait: "false"
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: node-role.kubernetes.io/worker-canary
-                    operator: DoesNotExist
-      terminationGracePeriodSeconds: 120
       hostNetwork: true
+      # hostNetwork uses the node's resolv.conf; without this,
+      # kubernetes.default.svc does not resolve.
       dnsPolicy: ClusterFirstWithHostNet
       priorityClassName: system-node-critical
       tolerations:
@@ -50,7 +46,7 @@ spec:
       serviceAccountName: kmm-operator-module-loader
       initContainers:
       - name: configure-lnet
-        image: &lustre-image "image-registry.openshift-image-registry.svc:5000/openshift-kmm/lustre-client-moduleloader:5.14.0-687.13.1.el9_8.x86_64-mofed"
+        image: &lustre-image "image-registry.openshift-image-registry.svc:5000/openshift-kmm/lustre-client-moduleloader:5.14.0-687.17.1.el9_8.x86_64-mofed"
         command:
           - /bin/sh
           - -c
@@ -84,7 +80,6 @@ spec:
               exit 1
             fi
 
-            # Note: libcfs module with cpu_npartitions is loaded by KMM Module (lnet-mod-mofed.yaml)
             echo "Verifying libcfs configuration (set by KMM):"
             echo "  cpu_npartitions: $(cat /sys/module/libcfs/parameters/cpu_npartitions 2>/dev/null || echo 'N/A')"
             echo "  cpu_pattern: $(cat /sys/module/libcfs/parameters/cpu_pattern 2>/dev/null || echo 'N/A')"
@@ -200,13 +195,10 @@ spec:
             lsmod | grep -E "ptlrpc|lustre|mgc"
             echo "=== Lustre modules loaded ==="
         env:
-          # Network configuration
           - name: NET_TYPE
             value: "o2ib"
           - name: NET_IFACE
             value: "ibs1f1"
-
-          # LNet tunables - override these values as needed
           - name: LNET_PEER_TIMEOUT
             value: "180"
           - name: LNET_PEER_CREDITS
@@ -215,8 +207,6 @@ spec:
             value: "0"
           - name: LNET_CREDITS
             value: "256"
-
-          # LND (o2ib) tunables - override these values as needed
           - name: LNET_PEERCREDITS_HIW
             value: "16"
           - name: LNET_MAP_ON_DEMAND
@@ -267,3 +257,4 @@ spec:
         resources: {}
         terminationMessagePath: /dev/termination-log
         terminationMessagePolicy: File
+

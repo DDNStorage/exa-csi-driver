@@ -1,46 +1,39 @@
 ---
-# Configures LNet NIDs, then loads ptlrpc/lustre/mgc from this image
-# (modprobe -d /opt). KMM Modules lnet/ko2iblnd only load the LNet stack.
+# Target-kernel LNet DS for a canary OpenShift upgrade.
+# Apply *alongside* the live DS, not instead of it. See README.md.
 #
-# The image must match uname -r (same tag KMM uses for the moduleloader).
-# Change it once on the &lustre-image line.
-# Note: IP configuration on InfiniBand interfaces must be done
-# by the customer before deploying this DaemonSet (see README-MOFED.md).
+# metadata.name is the target OpenShift minor (DNS label), e.g.
+# lnet-configuration-4.22. Do not put uname -r in the name (dots).
 #
-# nodeSelector is AND: kernel pin, lnet.ready, ko2iblnd.ready, and
-# NVIDIA MOFED ready (mofed.wait=false). worker-canary affinity
-# unschedules this DS so preStop can umount and lustre_rmmod.
-# updateStrategy OnDelete.
+# This DS configures LNet then loads ptlrpc/lustre/mgc (modprobe -d /opt),
+# so the image tag must match the *target* uname -r.
+#
+# Selectors are AND: kernel pin and lnet.ready. No worker-canary exclude:
+# canary nodes must run this DS.
+#
+# Clone of ../lnet-lustre-configuration-ds.yaml.
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: lnet-configuration
+  name: lnet-configuration-4.22
 spec:
   selector:
     matchLabels:
-      name: lnet-configuration
+      name: lnet-configuration-4.22
   updateStrategy:
     type: OnDelete
   template:
     metadata:
       labels:
-        name: lnet-configuration
+        name: lnet-configuration-4.22
     spec:
       nodeSelector:
         node-role.kubernetes.io/worker: ""
-        feature.node.kubernetes.io/kernel-version.full: "5.14.0-687.13.1.el9_8.x86_64"
+        feature.node.kubernetes.io/kernel-version.full: "5.14.0-687.29.1.el9_8.x86_64"
         kmm.node.kubernetes.io/openshift-kmm.lnet.ready: ""
-        kmm.node.kubernetes.io/openshift-kmm.ko2iblnd.ready: ""
-        network.nvidia.com/operator.mofed.wait: "false"
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: node-role.kubernetes.io/worker-canary
-                    operator: DoesNotExist
-      terminationGracePeriodSeconds: 120
       hostNetwork: true
+      # hostNetwork uses the node's resolv.conf; without this,
+      # kubernetes.default.svc does not resolve.
       dnsPolicy: ClusterFirstWithHostNet
       priorityClassName: system-node-critical
       tolerations:
@@ -50,15 +43,14 @@ spec:
       serviceAccountName: kmm-operator-module-loader
       initContainers:
       - name: configure-lnet
-        image: &lustre-image "image-registry.openshift-image-registry.svc:5000/openshift-kmm/lustre-client-moduleloader:5.14.0-687.13.1.el9_8.x86_64-mofed"
+        image: &lustre-image "image-registry.openshift-image-registry.svc:5000/openshift-kmm/lustre-client-moduleloader:5.14.0-687.29.1.el9_8.x86_64"
         command:
           - /bin/sh
           - -c
           - |
             set -e
-
-            echo "=== Waiting for LNet kernel modules (loaded by KMM Modules lnet, ko2iblnd) ==="
-            REQUIRED_MODULES="libcfs lnet ko2iblnd"
+            echo "=== Waiting for LNet kernel modules (loaded by KMM Module lnet) ==="
+            REQUIRED_MODULES="libcfs lnet ksocklnd"
             MAX_WAIT=300
             WAITED=0
             ALL_LOADED=false
@@ -84,13 +76,7 @@ spec:
               exit 1
             fi
 
-            # Note: libcfs module with cpu_npartitions is loaded by KMM Module (lnet-mod-mofed.yaml)
-            echo "Verifying libcfs configuration (set by KMM):"
-            echo "  cpu_npartitions: $(cat /sys/module/libcfs/parameters/cpu_npartitions 2>/dev/null || echo 'N/A')"
-            echo "  cpu_pattern: $(cat /sys/module/libcfs/parameters/cpu_pattern 2>/dev/null || echo 'N/A')"
-
-            echo "Configuring LNet: net=${NET_TYPE}, iface=${NET_IFACE}"
-            echo "Initializing LNet..."
+            echo "Configuring LNet: net=${NET_TYPE}, iface_list=${NET_IFACE}"
             if ! lnetctl lnet configure 2>/dev/null; then
               if lnetctl net show 2>/dev/null | grep -q "net type"; then
                 echo "LNet already configured (continuing)"
@@ -103,9 +89,12 @@ spec:
             IFS=',' read -ra IFACES <<< "${NET_IFACE}"
             IFACE_LIST=""
             for i in "${!IFACES[@]}"; do
-              IFACE_LIST="${IFACE_LIST}              $i: ${IFACES[$i]}\n"
+              IFACE="${IFACES[$i]// /}"
+              IFACE_LIST="${IFACE_LIST}              $i: ${IFACE}\n"
             done
 
+            # NI tunables only (tcp and o2ib). Do not copy o2ib LND/FMR
+            # keys here — ksocklnd will ignore or reject them.
             cat >/tmp/lnet.yaml <<EOF
             net:
               - net type: ${NET_TYPE}
@@ -117,15 +106,6 @@ spec:
                       peer_credits: ${LNET_PEER_CREDITS}
                       peer_buffer_credits: ${LNET_PEER_BUFFER_CREDITS}
                       credits: ${LNET_CREDITS}
-                    lnd tunables:
-                      peercredits_hiw: ${LNET_PEERCREDITS_HIW}
-                      map_on_demand: ${LNET_MAP_ON_DEMAND}
-                      concurrent_sends: ${LNET_CONCURRENT_SENDS}
-                      fmr_pool_size: ${LNET_FMR_POOL_SIZE}
-                      fmr_flush_trigger: ${LNET_FMR_FLUSH_TRIGGER}
-                      fmr_cache: ${LNET_FMR_CACHE}
-                      ntx: ${LNET_NTX}
-                      conns_per_peer: ${LNET_CONNS_PER_PEER}
             EOF
 
             echo "=== Generated LNet Configuration ==="
@@ -200,13 +180,11 @@ spec:
             lsmod | grep -E "ptlrpc|lustre|mgc"
             echo "=== Lustre modules loaded ==="
         env:
-          # Network configuration
           - name: NET_TYPE
-            value: "o2ib"
+            value: "tcp"
+          # For multirail, comma-separated interfaces (e.g., "ens192,ens224")
           - name: NET_IFACE
-            value: "ibs1f1"
-
-          # LNet tunables - override these values as needed
+            value: "br-ex"
           - name: LNET_PEER_TIMEOUT
             value: "180"
           - name: LNET_PEER_CREDITS
@@ -215,24 +193,6 @@ spec:
             value: "0"
           - name: LNET_CREDITS
             value: "256"
-
-          # LND (o2ib) tunables - override these values as needed
-          - name: LNET_PEERCREDITS_HIW
-            value: "16"
-          - name: LNET_MAP_ON_DEMAND
-            value: "1"
-          - name: LNET_CONCURRENT_SENDS
-            value: "64"
-          - name: LNET_FMR_POOL_SIZE
-            value: "512"
-          - name: LNET_FMR_FLUSH_TRIGGER
-            value: "384"
-          - name: LNET_FMR_CACHE
-            value: "1"
-          - name: LNET_NTX
-            value: "512"
-          - name: LNET_CONNS_PER_PEER
-            value: "1"
         securityContext:
           allowPrivilegeEscalation: true
           privileged: true
@@ -257,6 +217,7 @@ spec:
                 - -c
                 - |
                   echo "Unmounting Lustre filesystems"
+                  umount -a -t lustre || true
                   lustre_rmmod
         securityContext:
           allowPrivilegeEscalation: true
