@@ -28,25 +28,13 @@ Example:
 kubectl label node worker-1 os-version=ubuntu-22.04
 ```
 
-### InfiniBand (o2ib only)
-
-**CRITICAL**: IB interfaces need IP in **same subnet** as Lustre servers.
-
-1. Install MOFED drivers (if needed)
-2. Configure IB IP:
-
-   ```bash
-   sudo ip addr add 172.25.81.10/16 dev ib0
-   sudo ip link set ib0 up
-   ```
-
 ## Supported Distributions
 
-| OS               | Kernels                                   | Network   |
-| ---------------- | ----------------------------------------- | --------- |
-| **Ubuntu 20.04** | 5.4.x (GA), 5.15.x (HWE)                  | TCP, o2ib |
-| **Ubuntu 22.04** | 5.15.x (GA), 6.8.x (HWE)                  | TCP, o2ib |
-| **Ubuntu 24.04** | 6.8.0-\*, 6.11.0-\*, 6.14.0-\*, 6.17.0-\* | TCP, o2ib |
+| OS               | Kernels                                   | Network |
+| ---------------- | ----------------------------------------- | ------- |
+| **Ubuntu 20.04** | 5.4.x (GA), 5.15.x (HWE)                  | TCP     |
+| **Ubuntu 22.04** | 5.15.x (GA), 6.8.x (HWE)                  | TCP     |
+| **Ubuntu 24.04** | 6.8.0-\*, 6.11.0-\*, 6.14.0-\*, 6.17.0-\* | TCP     |
 
 ## Quick Start
 
@@ -72,7 +60,6 @@ sed -i "s|<LUSTRE_SOURCE_SERVER>|${LUSTRE_SOURCE_SERVER}|g" lustre-client-mod-<o
 sed -i "s|<LUSTRE_TARBALL_NAME>|${LUSTRE_TARBALL_NAME}|g" lnet-mod-<os_version>.yaml
 sed -i "s|<LUSTRE_TARBALL_NAME>|${LUSTRE_TARBALL_NAME}|g" lustre-client-mod-<os_version>.yaml
 sed -i "s|<IFACE_NAME>|${IFACE_NAME}|g" lnet-configuration-tcp-<os_version>.yaml
-sed -i "s|<IFACE_NAME>|${IFACE_NAME}|g" lnet-configuration-o2ib-<os_version>.yaml
 sed -i "s|\${KERNEL_FULL_VERSION}|${KERNEL_VERSION}|g" lnet-configuration-tcp-<os_version>.yaml
 ```
 
@@ -157,16 +144,6 @@ kubectl apply -f lnet-configuration-tcp-<os_version>.yaml
 
 **Note**: Update `NET_IFACE` in `lnet-configuration-tcp-<os_version>.yaml` to match your TCP interface (e.g., `eth0`, `ens33`, `bond0`).
 
-### InfiniBand (o2ib)
-
-```bash
-kubectl apply -f lustre-<os_version>-dockerfile-configmap.yaml
-kubectl apply -f lnet-mod-<os_version>.yaml
-kubectl apply -f lnet-configuration-o2ib-<os_version>.yaml
-```
-
-**Note**: Update `NET_IFACE` in `lnet-configuration-o2ib-<os_version>.yaml` to match your IB interface (e.g., `ib0`, `ibs1f1`).
-
 ## Advanced: Optional Lustre Client Module Loading
 
 **⚠️ Important:** This is an advanced pattern. For standard deployments, skip this section and use the Quick Start workflow above.
@@ -230,30 +207,12 @@ kubectl logs -n lustre-kmm -l name=lustre-cleanup
 
 ### Step 3: Remove Kubernetes Resources
 
-For TCP network:
-
 ```bash
 # Remove cleanup DaemonSet
 kubectl delete -f lustre-cleanup-ds.yaml
 
 # Remove LNet configuration DaemonSet
 kubectl delete -f lnet-configuration-tcp-<os_version>.yaml
-
-# Remove module CRDs
-kubectl delete -f lnet-mod-<os_version>.yaml
-
-# Remove Dockerfile ConfigMap
-kubectl delete -f lustre-<os_version>-dockerfile-configmap.yaml
-```
-
-For InfiniBand (o2ib) network:
-
-```bash
-# Remove cleanup DaemonSet
-kubectl delete -f lustre-cleanup-ds.yaml
-
-# Remove LNet configuration DaemonSet
-kubectl delete -f lnet-configuration-o2ib-<os_version>.yaml
 
 # Remove module CRDs
 kubectl delete -f lnet-mod-<os_version>.yaml
@@ -282,7 +241,6 @@ export KERNEL_VERSION=$(uname -r)
 
 # Update only the required DaemonSet manifest with new kernel version
 sed -i "s|\${KERNEL_FULL_VERSION}|${KERNEL_VERSION}|g" lnet-configuration-tcp-<os_version>.yaml
-# (or lnet-configuration-o2ib-<os_version>.yaml if using InfiniBand)
 
 # Then apply the updated DaemonSet
 kubectl apply -f lnet-configuration-tcp-<os_version>.yaml
